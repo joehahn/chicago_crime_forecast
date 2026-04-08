@@ -6,7 +6,7 @@ branch=main
 
 ## Project
 
-This repository is for a Chicago crime forcasting project
+This repository is for the Chicago crime-forcasting project
 
 1 This project's github is at https://github.com/joehahn/chicago_crime_forecast
 
@@ -18,7 +18,7 @@ This repository is for a Chicago crime forcasting project
 
     @data_exploration.txt
 
-and inspect results from the above published in data_exploration.html
+and inspect results that the above reported in data_exploration.html
 
 4 tell claude to run the prep_data scripts
 
