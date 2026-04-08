@@ -1,4 +1,4 @@
-#download profile & clean the chicago crime data
+The following will download the Chicago crimes dataset, profile & clean that data, and make some plots.
 
 Download the latest crime data from the Chicago Data Portal at data.cityofchicago.org. 
 Use the Socrata API endpoint for the Crimes dataset (dataset ID: ijzp-q8t2). 
