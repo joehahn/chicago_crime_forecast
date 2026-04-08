@@ -1,3 +1,8 @@
+%get_data.txt
+%by Joe Hahn
+%jmh.datasciences@gmail.com
+%2026-April-8
+
 The following will download the Chicago crimes dataset, profile & clean that data, and make some plots.
 
 Download the latest crime data from the Chicago Data Portal at data.cityofchicago.org. 

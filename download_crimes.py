@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Chicago crime data from the Socrata API for the past 3 years."""
+"""Download Chicago crime data from the Socrata API for the past 4 years."""
 
 import csv
 import json
@@ -14,7 +14,7 @@ import os
 os.makedirs("data", exist_ok=True)
 OUTPUT_FILE = "data/crimes.csv"
 
-cutoff = (datetime.now() - timedelta(days=3 * 365)).strftime("%Y-%m-%dT%H:%M:%S")
+cutoff = (datetime.now() - timedelta(days=4 * 365)).strftime("%Y-%m-%dT%H:%M:%S")
 print(f"Fetching records since {cutoff}")
 
 total = 0
