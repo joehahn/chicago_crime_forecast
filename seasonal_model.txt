@@ -72,17 +72,74 @@ Print all records in df_target that have primary_type=THEFT and ward=27
 append a new column to df_target called 'ran_num' that has random floating point values 
 uniformly distributed between 0 and 1, name that result df_ttv.
 Set date_validate='2025-04-15'
-The create a new column 'TTVF' in df_ttvf
-such that all rows having date < date_validate and ran_num <= 0.667 have TTVF='train',
-          all rows having date < date_validate and ran_num  > 0.667 have TTVF='test',
-          all rows having date_validate < date < date_max have TTVF='validate'
-      and all rows having date >= date_max have TTVF='forecast'
+The create a new column 'TTV' in df_ttvf
+such that all rows having date < date_validate and ran_num <= 0.667 have TTV='train',
+          all rows having date < date_validate and ran_num  > 0.667 have TTV='test',
+          all rows having date_validate < date < date_max have TTV='validate'
+      and all rows having date >= date_max have TTV='forecast'
 
-drop the count_previous and ran_num columns from df_ttvf
-Then reorder the columns in with date first and delta_count, count_0, count_1, count_2, count_3, count_4 
-and TTVF being last. Name that new result dt_monthly
 
-Save dt_monthly as file data/crimes_monthly.csv
+show all records in df_ttvf having primary_type=BURGLARY and ward=22
 
-Show all records in dt_monthly having primary_type=BURGLARY and ward=22
+Save df_ttvf as file data/df_ttvf.csv
+
+21 let df_train = all records in df_ttv having TTV='train', keeping only the 
+year, month, week, ward, primary_type, count_0, count_1, count_2, count_3 columns.
+let df_test = all records in df_ttv having TTV='test', preserving the same columns. 
+And let df_validate = all records in df_ttv having TTV='validate', preserving the same columns. 
+How many records are in df_train, df_test, df_validate?
+
+22 show 5 random records from df_train
+
+23 train an XGBoost machine learning model on df_train. That model's features are the
+year, month, week, ward, primary_type, count_0 columns, and that model's target variable is count_1,
+with df_test being the testing sample of data. name that trained model model_1.
+Then train an XGBoost on df_train using the same features to predict count_2, name that trained model model_2.
+And also train an XGBoost on df_train using the same features to predict count_3, name that trained model model_3.
+
+24 let df_predict = df_validate. Use model_1 to generate predictions on df_predict, and append those predictions to
+df_predict as new column called 'count_1_pred'. Then do similar using model_2 and model_3
+
+25 show all records in df_predict having primary_type=THEFT and ward=27
+
+26 use df_predict to create a dashboard of plots that compare model predictions to actuals:
+
+plot 1: scatterplot of model_1 predictions versus actuals. 
+Use logarithmic axes ranging from 0.8 to 120.
+Do not distinguish between the different crimes or wards.
+Do not add 0.5 to the predictions or actuals.
+Only include points whose predictions and actuals are > 0
+Also overplot y=x via a dashed line
+
+plot 2: same as plot 1 but for model_2
+
+plot 3: same as plot 1 but for model_3
+
+plot 4: show timeseries plots of summed actual and predicted THEFT, NARCOTICS, and ARSON versus date for model_1
+using different colors for the different crimes. The plot's vertical axis should use logarithmic axis
+
+plot 5: same as plot 4 but for model_2 
+
+plot 6: same as plot 4 but for model_3
+
+plot 7: show timeseries plots of summed actual and predicted for wards 27, 32, 38 versus date for model_1
+using different colors for the different crimes. The plot's vertical axis should use logarithmic axis
+
+plot 8: same as plot 7 but for model_2
+
+plot 9: same as plot 7 but for model_3
+
+plot 10: timeseries plot of count_0 versus date for THEFT in ward 27,
+as well as date + 1 week versus count_1_pred
+and date + 2 week versus count_2_pred
+and date + 3 week versus count_3_pred
+
+stack each plot vertially
+Store that dashboard as an html file named model_dashboard.html
+
+27 get all records in df_predict having primary_type=THEFT and ward=27, and show:
+date, count_0, date+1 week, count_1, date+2 weeks, count_2, date+3 weeks, count_3 
+
+
+
 
