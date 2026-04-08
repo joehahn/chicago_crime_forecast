@@ -1,6 +1,8 @@
 # CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+by Joe Hahn
+jmh.datasciences@gmail.com
+2026-April-7
+branch=main
 
 ## Project
 

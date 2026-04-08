@@ -1,5 +1,5 @@
 
-The following will prepare the Chicago crims data for training ML models to 
+The following will prepare the Chicago crime data for training ML models to 
 forecast crimes across that city.
 
 Begin by loading file data/crimes_filtered.csv into object df_filtered
@@ -78,11 +78,12 @@ such that all rows having date < date_validate and ran_num <= 0.667 have TTVF='t
           all rows having date_validate < date < date_max have TTVF='validate'
       and all rows having date >= date_max have TTVF='forecast'
 
-drop the count_previous and ran_num columns from df_ttvf
-Then reorder the columns in with date first and delta_count, count_0, count_1, count_2, count_3, count_4 
-and TTVF being last. Name that new result dt_monthly
-
-Save dt_monthly as file data/crimes_monthly.csv
+drop these columns from df_ttvf: arrest, domestic , count_previous, ran_num
+Then reorder the columns in with date first and delta_count, count_0, count_1, count_2, count_3, count_4 and TTVF being last. 
+Drop all recording having delta_count=NaN and TTVF!=forecast column.
+Name that new result dt_monthly.
 
 Show all records in dt_monthly having primary_type=BURGLARY and ward=22
+
+Save dt_monthly as file data/crimes_monthly.csv
 

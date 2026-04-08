@@ -237,12 +237,16 @@ print(df_ttvf[mask].to_string())
 df_ttvf.to_csv('data/df_ttvf.csv', index=False)
 print(f"\nSaved data/df_ttvf.csv  ({len(df_ttvf):,} records)")
 
-# ── 23. Build dt_monthly (drop count_previous & ran_num, reorder columns) ────
-dt_monthly = df_ttvf.drop(columns=['count_previous', 'ran_num'])
+# ── 23. Build dt_monthly (drop columns, reorder, drop NaN delta_count non-forecast) ──
+dt_monthly = df_ttvf.drop(columns=['arrest', 'domestic', 'count_previous', 'ran_num'])
 
 tail_cols = ['delta_count', 'count_0', 'count_1', 'count_2', 'count_3', 'count_4', 'TTVF']
 other_cols = [c for c in dt_monthly.columns if c not in ['date'] + tail_cols]
 dt_monthly = dt_monthly[['date'] + other_cols + tail_cols]
+
+# Drop rows where delta_count is NaN and TTVF is not 'forecast'
+drop_mask = dt_monthly['delta_count'].isna() & (dt_monthly['TTVF'] != 'forecast')
+dt_monthly = dt_monthly[~drop_mask].reset_index(drop=True)
 
 print(f"\ndt_monthly columns: {dt_monthly.columns.tolist()}")
 print(f"\ndt_monthly records: {len(dt_monthly):,}")
@@ -250,3 +254,8 @@ print(f"\ndt_monthly records: {len(dt_monthly):,}")
 # ── 24. Save dt_monthly ───────────────────────────────────────────────────────
 dt_monthly.to_csv('data/crimes_monthly.csv', index=False)
 print(f"\nSaved data/crimes_monthly.csv  ({len(dt_monthly):,} records)")
+
+# ── 25. BURGLARY ward 22 in dt_monthly ───────────────────────────────────────
+mask = (dt_monthly['primary_type'] == 'BURGLARY') & (dt_monthly['ward'] == 22)
+print(f"\ndt_monthly: primary_type=BURGLARY, ward=22:")
+print(dt_monthly[mask].to_string())
