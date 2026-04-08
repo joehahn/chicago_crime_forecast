@@ -4,4 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-This repository is for a Chicago crimes data analysis project. It is currently empty — update this file as the project takes shape.
+This repository is for a Chicago crime forcasting project
+
+This project's github repo=https://github.com/joehahn/chicago_crime_forecast
+
