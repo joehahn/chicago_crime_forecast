@@ -10,19 +10,21 @@ This repository is for the Chicago crime-forcasting project
 
 1 This project's github is at https://github.com/joehahn/chicago_crime_forecast
 
-2 start claude
+2 Start claude
 
     claude
 
-3 tell claude to get chicago crime data
+3 Prompt claude to download chicago crime data
 
     @get_data.txt
 
-4
+4 Prompt claude to explore and visualize crime data
+
+    @explore_data.txt
 
 and inspect results that the above reported in data_exploration.html
 
-4 tell claude to run the prep_data scripts
+5 tell claude to run the prep_data scripts
 
     @prep_data.txt
 
