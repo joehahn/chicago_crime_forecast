@@ -2,7 +2,6 @@
 """Download Chicago crime data from the Socrata API for the past 4 years."""
 
 import csv
-import json
 import sys
 import urllib.request
 import urllib.parse
@@ -17,12 +16,14 @@ OUTPUT_FILE = "data/crimes.csv"
 cutoff = (datetime.now() - timedelta(days=4 * 365)).strftime("%Y-%m-%dT%H:%M:%S")
 print(f"Fetching records since {cutoff}")
 
-total = 0
-offset = 0
-header_written = False
+start_offset = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+total = start_offset
+offset = start_offset
+header_written = start_offset > 0
+file_mode = "a" if start_offset > 0 else "w"
 
-with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_f:
-    writer = None
+with open(OUTPUT_FILE, file_mode, newline="", encoding="utf-8") as out_f:
+    writer = csv.writer(out_f)
 
     while True:
         params = urllib.parse.urlencode({
@@ -35,8 +36,15 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_f:
         print(f"  Fetching offset={offset} ...", end=" ", flush=True)
 
         req = urllib.request.Request(url, headers={"Accept": "text/csv"})
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            raw = resp.read().decode("utf-8")
+        for attempt in range(5):
+            try:
+                with urllib.request.urlopen(req, timeout=180) as resp:
+                    raw = resp.read().decode("utf-8")
+                break
+            except Exception as e:
+                if attempt == 4:
+                    raise
+                print(f"timeout/error (attempt {attempt+1}), retrying... ({e})", end=" ", flush=True)
 
         lines = raw.splitlines()
         if len(lines) <= 1:
@@ -49,7 +57,6 @@ with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as out_f:
         data_rows = rows[1:]
 
         if not header_written:
-            writer = csv.writer(out_f)
             writer.writerow(header)
             header_written = True
 

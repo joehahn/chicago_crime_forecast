@@ -14,9 +14,11 @@ This repository is for the Chicago crime-forcasting project
 
     claude
 
-3 tell claude to run the data exploration scripts
+3 tell claude to get chicago crime data
 
-    @data_exploration.txt
+    @get_data.txt
+
+4
 
 and inspect results that the above reported in data_exploration.html
 

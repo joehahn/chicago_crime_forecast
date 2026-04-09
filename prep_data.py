@@ -4,7 +4,7 @@
 import pandas as pd
 
 # ── 1. Load filtered data ─────────────────────────────────────────────────────
-df_filtered = pd.read_csv('data/crimes_filtered.csv', low_memory=False)
+df_filtered = pd.read_csv('data/crimes.csv', low_memory=False)
 print(f"df_filtered records: {len(df_filtered):,}")
 
 # ── 2. Rename date→timestamp, derive month, filter top 20 primary_type ────────

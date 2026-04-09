@@ -1,27 +1,24 @@
-%get_data.txt
-%by Joe Hahn
-%jmh.datasciences@gmail.com
-%2026-April-8
+get_data.txt
+by Joe Hahn
+jmh.datasciences@gmail.com
+2026-April-8
 
 The following will download the Chicago crimes dataset and do some very light filtering & cleanup. See 
     https://www.chicago.gov/city/en/dataset/crime.html
 for a description of that data.
 
-Download the latest crime data from the Chicago Data Portal at data.cityofchicago.org. 
+Begin by ownloading the latest crime data from the Chicago Data Portal at data.cityofchicago.org. 
 Use the Socrata API endpoint for the Crimes dataset (dataset ID: ijzp-q8t2). 
 Fetch records from the past 4 years and store that result in object df_raw.
-
-Read the data/crimes.csv file and store that data in object df_raw. How many records are in df_raw?
+How many records are in df_raw?
 
 Inspect each text column in df_raw (such as the 'description' column), and mitigate any problematic carraige returns.
 Store the result in object df_clean. How many records are in df_clean?
 
-display a count of primary_type in df_clean
+Display a count of primary_type in df_clean
 
-filter out from df_clean the records whose primary_type include
+Filter out from df_clean those records whose primary_type include
     CRIMINAL SEXUAL ASSAULT, OFFENSE INVOLVING CHILDREN, SEX OFFENSE, PROSTITUTION 
-store that result in object df_filtered. How many records are in df_filtered?
+and store that result in object df_filtered. How many records are in df_filtered?
 
-save df_filtered in file data/crimes_filtered.csv
-
-Profile df_filtered
+Save df_filtered in file data/crimes.csv
