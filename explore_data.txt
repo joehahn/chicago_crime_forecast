@@ -18,13 +18,13 @@ Create a data-exploration dashboard that shows these plots of data in df_filtere
 
 -plot 3: timeserise plot of monthly number of records versus date. 
 
--plot 4: barchart of counts of primary_type. Counts run vertical, and use logarithmic axis
+-plot 4: barchart of counts of primary_type. Counts run vertical in descending order. Use logarithmic axis
 
 -plot 5: barchart of counts of ward. Counts run vertical, ordered in decreasing order of count
 
 -plot 6: timeseries plot showing number of primary_type=THEFT versus time for each distinct ward. 
  Use logarithmic vertical axis. Dont show a legend for this plot
- Vertical axis runs from 10 to 700
+ Vertical axis runs from 10 to 1100
 
 -plot 7: select 10000 random records. Show scatterplot of latitude vs -longitude , colorized by ward.
  Horizontal axis runs from 87.85 on left side of plot to 87.5 on the right

@@ -25,7 +25,7 @@ monthly = df_filtered.groupby(df_filtered['date'].dt.to_period('M')).size().rese
 monthly['date'] = monthly['date'].apply(lambda p: p.start_time)
 
 # ---- Plot 4: Primary type barchart (log scale) ----
-type_counts = df_filtered['primary_type'].value_counts().sort_values(ascending=True)
+type_counts = df_filtered['primary_type'].value_counts().sort_values(ascending=False)
 
 # ---- Plot 5: Ward barchart (decreasing order) ----
 ward_counts = df_filtered['ward'].dropna().astype(int).value_counts().sort_values(ascending=False)
@@ -101,7 +101,7 @@ for i, ward in enumerate(wards):
         line=dict(color=colors[i], width=1),
         showlegend=False,
     ), row=6, col=1)
-fig.update_yaxes(type='log', range=[1, 2.845], row=6, col=1, title_text='Count (log)')
+fig.update_yaxes(type='log', range=[1, 3.041], row=6, col=1, title_text='Count (log)')
 
 # Plot 7 - scatter map
 fig.add_trace(go.Scatter(
