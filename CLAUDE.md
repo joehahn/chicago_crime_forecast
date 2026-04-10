@@ -22,13 +22,13 @@ This repository is for the Chicago crime-forcasting project
 
     @explore_data.txt
 
-and inspect results that the above reported in data_exploration.html
+and inspect the plots that the above published in data_exploration.html
 
-5 tell claude to run the prep_data scripts
+5 tell claude to create the prep_data script
 
     @prep_data.txt
 
-5
+6
 
 
 

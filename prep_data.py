@@ -1,261 +1,228 @@
 #!/usr/bin/env python3
-"""Prepare Chicago crime data for ML forecasting."""
+# prep_data.py
+# by Joe Hahn
+# jmh.datasciences@gmail.com
+# 2026-April-9
 
 import pandas as pd
+import numpy as np
+from itertools import product
 
-# ── 1. Load filtered data ─────────────────────────────────────────────────────
-df_filtered = pd.read_csv('data/crimes.csv', low_memory=False)
-print(f"df_filtered records: {len(df_filtered):,}")
+np.random.seed(42)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 200)
 
-# ── 2. Rename date→timestamp, derive month, filter top 20 primary_type ────────
+# ---- Load and profile df_filtered ----
+df_filtered = pd.read_csv('data/crimes.csv')
+print('=== df_filtered profile ===')
+print(f'shape: {df_filtered.shape}')
+print(df_filtered.dtypes)
+print(df_filtered.describe())
+print()
+
+# ---- Rename date -> timestamp, derive month ----
 df_filtered = df_filtered.rename(columns={'date': 'timestamp'})
 df_filtered['timestamp'] = pd.to_datetime(df_filtered['timestamp'])
 df_filtered['month'] = df_filtered['timestamp'].dt.month
 
-top20 = df_filtered['primary_type'].value_counts().nlargest(20).index
+# ---- Keep only top 20 primary_types ----
+top20 = df_filtered['primary_type'].value_counts().nlargest(20).index.tolist()
 df_20 = df_filtered[df_filtered['primary_type'].isin(top20)].copy()
-print(f"\ndf_20 records: {len(df_20):,}")
+print(f'df_20 records: {len(df_20):,}')
 
-# ── 3. Date range ─────────────────────────────────────────────────────────────
+# ---- date_min, date_max ----
 date_min = df_20['timestamp'].min()
 date_max = df_20['timestamp'].max()
-print(f"date_min: {date_min}")
-print(f"date_max: {date_max}")
+print(f'date_min: {date_min}')
+print(f'date_max: {date_max}')
 
-# ── 4. primary_type counts in df_20 ──────────────────────────────────────────
-print(f"\nprimary_type counts in df_20:")
-print(df_20['primary_type'].value_counts().to_string())
+# ---- Counts of primary_type ----
+print('\nCounts of primary_type in df_20:')
+print(df_20['primary_type'].value_counts())
 
-# ── 5. Random record from df_20 ───────────────────────────────────────────────
-print(f"\nRandom record from df_20:")
-print(df_20.sample(1).T.to_string())
+# ---- 1 random record ----
+print('\n1 random record in df_20 (all columns):')
+print(df_20.sample(1, random_state=42).to_string())
 
-# ── 6. Column types in df_20 ─────────────────────────────────────────────────
-print(f"\ndf_20 dtypes:")
-print(df_20.dtypes.to_string())
+# ---- Column types ----
+print('\nColumn types in df_20:')
+print(df_20.dtypes)
 
-# ── 7. Group by year, month, ward, primary_type → df_avg ─────────────────────
-df_avg = (
-    df_20.groupby(['year', 'month', 'ward', 'primary_type'], as_index=False)
-    .agg(
-        date=('timestamp', lambda x: x.dt.to_period('M').min().to_timestamp()),
-        arrest=('arrest', 'mean'),
-        domestic=('domestic', 'mean'),
-        latitude=('latitude', 'mean'),
-        longitude=('longitude', 'mean'),
-        count_0=('id', 'count'),
-    )
-)
+# ---- Convert arrest/domestic to int for mean ----
+df_20['arrest'] = df_20['arrest'].astype(int)
+df_20['domestic'] = df_20['domestic'].astype(int)
 
-# Strip any residual prefix/suffix artifacts, cast ward to int
-df_avg.columns = [c.replace('mean_', '').replace('_mean', '') for c in df_avg.columns]
+# ---- Group to df_avg ----
+df_avg = df_20.groupby(['year', 'month', 'ward', 'primary_type']).agg(
+    arrest=('arrest', 'mean'),
+    domestic=('domestic', 'mean'),
+    latitude=('latitude', 'mean'),
+    longitude=('longitude', 'mean'),
+    count_0=('id', 'count'),
+).reset_index()
+
+# Construct date as first day of month
+df_avg['date'] = pd.to_datetime({'year': df_avg['year'], 'month': df_avg['month'], 'day': 1})
+
+# Cast ward as integer
 df_avg['ward'] = df_avg['ward'].astype(int)
 
-# Reorder: date first, count_0 last
-other_cols = [c for c in df_avg.columns if c not in ('date', 'count_0')]
-df_avg = df_avg[['date'] + other_cols + ['count_0']]
+# Reorder columns: date first, count_0 last
+cols = ['date', 'year', 'month', 'ward', 'primary_type', 'arrest', 'domestic', 'latitude', 'longitude', 'count_0']
+df_avg = df_avg[cols]
 
-# Sort
+# Order by date, ward, primary_type
 df_avg = df_avg.sort_values(['date', 'ward', 'primary_type']).reset_index(drop=True)
 
-print(f"\ndf_avg records: {len(df_avg):,}")
-print(f"\ndf_avg head:")
-print(df_avg.head(10).to_string())
+print(f'\ndf_avg records: {len(df_avg):,}')
 
-# ── 8. Ward with greatest sum(count_0) for THEFT ─────────────────────────────
-theft_by_ward = (
-    df_avg[df_avg['primary_type'] == 'THEFT']
-    .groupby('ward')['count_0'].sum()
-    .sort_values(ascending=False)
-)
-print(f"\nTop wards by sum(count_0) for THEFT:")
-print(theft_by_ward.head(10).to_string())
-print(f"\nWard with greatest THEFT count_0: {theft_by_ward.idxmax()} ({theft_by_ward.max():,})")
+# ---- Which ward has greatest sum(count_0) for THEFT? ----
+theft_sums = df_avg[df_avg['primary_type'] == 'THEFT'].groupby('ward')['count_0'].sum()
+best_theft_ward = theft_sums.idxmax()
+print(f'\nWard with greatest THEFT sum(count_0): ward={best_theft_ward} (total={theft_sums[best_theft_ward]:,})')
 
-# ── 9. All THEFT records for ward 42 ─────────────────────────────────────────
-mask = (df_avg['primary_type'] == 'THEFT') & (df_avg['ward'] == 42)
-print(f"\ndf_avg: primary_type=THEFT, ward=42:")
-print(df_avg[mask].to_string())
+# ---- Show THEFT ward=42 ----
+print('\ndf_avg: primary_type=THEFT, ward=42:')
+print(df_avg[(df_avg['primary_type'] == 'THEFT') & (df_avg['ward'] == 42)].to_string())
 
-# ── 10. All ARSON records for ward 42 ────────────────────────────────────────
-mask = (df_avg['primary_type'] == 'ARSON') & (df_avg['ward'] == 42)
-print(f"\ndf_avg: primary_type=ARSON, ward=42:")
-print(df_avg[mask].to_string())
+# ---- Show ARSON ward=42 ----
+print('\ndf_avg: primary_type=ARSON, ward=42:')
+print(df_avg[(df_avg['primary_type'] == 'ARSON') & (df_avg['ward'] == 42)].to_string())
 
-# ── 11. Zero-pad missing year/month/ward/primary_type combinations ────────────
-year_months = df_avg[['year', 'month']].drop_duplicates()
-wards = df_avg[['ward']].drop_duplicates()
-primary_types = df_avg[['primary_type']].drop_duplicates()
+# ---- Zero-pad missing (year, month, ward, primary_type) combinations ----
+date_min_month = pd.Timestamp(date_min.year, date_min.month, 1)
+date_max_month = pd.Timestamp(date_max.year, date_max.month, 1)
 
-year_months['_key'] = 1
-wards['_key'] = 1
-primary_types['_key'] = 1
+all_months = pd.date_range(start=date_min_month, end=date_max_month, freq='MS')
+all_wards = sorted(df_avg['ward'].unique())
+all_types = sorted(df_avg['primary_type'].unique())
 
-full_index = (
-    year_months
-    .merge(wards, on='_key')
-    .merge(primary_types, on='_key')
-    .drop(columns='_key')
-)
+# Full cartesian product of dates x wards x types
+full_index = pd.MultiIndex.from_product([all_months, all_wards, all_types],
+                                         names=['date', 'ward', 'primary_type'])
+df_full = pd.DataFrame(index=full_index).reset_index()
+df_full['year'] = df_full['date'].dt.year
+df_full['month'] = df_full['date'].dt.month
 
-df_pad = full_index.merge(df_avg, on=['year', 'month', 'ward', 'primary_type'], how='left')
-df_pad['count_0'] = df_pad['count_0'].fillna(0).astype(int)
-df_pad['date'] = pd.to_datetime(df_pad[['year', 'month']].assign(day=1))
+# Identify missing combinations
+df_avg_keys = df_avg[['date', 'ward', 'primary_type']].copy()
+df_avg_keys['_exists'] = True
+df_full = df_full.merge(df_avg_keys, on=['date', 'ward', 'primary_type'], how='left')
+
+df_missing = df_full[df_full['_exists'].isna()].drop(columns=['_exists']).copy()
+df_missing['arrest'] = np.nan
+df_missing['domestic'] = np.nan
+df_missing['latitude'] = np.nan
+df_missing['longitude'] = np.nan
+df_missing['count_0'] = 0
+
+# Combine and reorder
+df_pad = pd.concat([df_avg, df_missing], ignore_index=True)
+df_pad = df_pad[cols]
 df_pad = df_pad.sort_values(['date', 'ward', 'primary_type']).reset_index(drop=True)
 
-print(f"\ndf_pad records: {len(df_pad):,}")
+print(f'\ndf_pad records: {len(df_pad):,}')
 
-# ── 12. ARSON ward 42 in df_pad ───────────────────────────────────────────────
-mask = (df_pad['primary_type'] == 'ARSON') & (df_pad['ward'] == 42)
-print(f"\ndf_pad: primary_type=ARSON, ward=42:")
-print(df_pad[mask].to_string())
+print('\ndf_pad: primary_type=ARSON, ward=42:')
+print(df_pad[(df_pad['primary_type'] == 'ARSON') & (df_pad['ward'] == 42)].to_string())
 
-# ── 13. Replace NaNs with random non-NaN values per column ───────────────────
-import numpy as np
-rng = np.random.default_rng(42)
-
+# ---- Fill NaN values with random non-NaN selections ----
 df_nan = df_pad.copy()
 for col in df_nan.columns:
-    null_mask = df_nan[col].isna()
-    if null_mask.any():
-        non_null_vals = df_nan.loc[~null_mask, col].values
-        df_nan.loc[null_mask, col] = rng.choice(non_null_vals, size=null_mask.sum())
+    if df_nan[col].isna().any():
+        non_nan = df_nan[col].dropna().values
+        if len(non_nan) > 0:
+            nan_mask = df_nan[col].isna()
+            df_nan.loc[nan_mask, col] = np.random.choice(non_nan, size=nan_mask.sum())
 
-print(f"\ndf_nan NaN counts per column:")
-print(df_nan.isna().sum().to_string())
+print('\ndf_nan: primary_type=ARSON, ward=22:')
+print(df_nan[(df_nan['primary_type'] == 'ARSON') & (df_nan['ward'] == 22)].to_string())
 
-# ── 14. ARSON ward 22 in df_nan ───────────────────────────────────────────────
-mask = (df_nan['primary_type'] == 'ARSON') & (df_nan['ward'] == 22)
-print(f"\ndf_nan: primary_type=ARSON, ward=22:")
-print(df_nan[mask].to_string())
-
-# ── 15. Null-pad df_nan out to date_max + 4 months ───────────────────────────
-from pandas.tseries.offsets import MonthBegin
-
-date_max_padded = (date_max + 4 * MonthBegin()).normalize()
-extra_periods = pd.date_range(
-    start=date_max.to_period('M').to_timestamp() + MonthBegin(),
-    end=date_max_padded,
-    freq='MS',
+# ---- NaN-pad out to date_max + 4 months ----
+future_months = pd.date_range(
+    start=date_max_month + pd.DateOffset(months=1),
+    periods=4,
+    freq='MS'
 )
 
-wards_u = df_nan[['ward']].drop_duplicates()
-primary_types_u = df_nan[['primary_type']].drop_duplicates()
+future_rows = [
+    {'date': dt, 'year': dt.year, 'month': dt.month,
+     'ward': ward, 'primary_type': pt,
+     'arrest': np.nan, 'domestic': np.nan,
+     'latitude': np.nan, 'longitude': np.nan,
+     'count_0': np.nan}
+    for dt, ward, pt in product(future_months, all_wards, all_types)
+]
 
-extra_rows = pd.DataFrame({'date': extra_periods})
-extra_rows['_key'] = 1
-wards_u['_key'] = 1
-primary_types_u['_key'] = 1
+df_null = pd.concat([df_nan, pd.DataFrame(future_rows)], ignore_index=True)
+df_null = df_null[cols]
+df_null = df_null.sort_values(['date', 'ward', 'primary_type']).reset_index(drop=True)
 
-extra_full = (
-    extra_rows
-    .merge(wards_u, on='_key')
-    .merge(primary_types_u, on='_key')
-    .drop(columns='_key')
-)
-extra_full['year'] = extra_full['date'].dt.year
-extra_full['month'] = extra_full['date'].dt.month
+print('\ndf_null: primary_type=ARSON, ward=22:')
+print(df_null[(df_null['primary_type'] == 'ARSON') & (df_null['ward'] == 22)].to_string())
 
-df_null = (
-    pd.concat([df_nan, extra_full], ignore_index=True)
-    .sort_values(['date', 'ward', 'primary_type'])
-    .reset_index(drop=True)
-)
-
-print(f"\ndate_max_padded: {date_max_padded.date()}")
-print(f"df_null records: {len(df_null):,}")
-print(f"\ndf_null NaN counts per column:")
-print(df_null.isna().sum().to_string())
-
-# ── 16. ARSON ward 22 in df_null ─────────────────────────────────────────────
-mask = (df_null['primary_type'] == 'ARSON') & (df_null['ward'] == 22)
-print(f"\ndf_null: primary_type=ARSON, ward=22:")
-print(df_null[mask].to_string())
-
-# ── 17. 5 random records from df_null ────────────────────────────────────────
-print(f"\n5 random records from df_null:")
+print('\n5 random records in df_null:')
 print(df_null.sample(5, random_state=42).to_string())
 
-# ── 18. Build df_target with lag/lead count columns ───────────────────────────
-df_null_sorted = df_null.sort_values(['ward', 'primary_type', 'date']).copy()
-
-def add_shifts(grp):
-    grp = grp.sort_values('date')
-    grp['count_previous'] = grp['count_0'].shift(1)
-    grp['count_1']        = grp['count_0'].shift(-1)
-    grp['count_2']        = grp['count_0'].shift(-2)
-    grp['count_3']        = grp['count_0'].shift(-3)
-    grp['count_4']        = grp['count_0'].shift(-4)
-    grp['delta_count']    = grp['count_0'] - grp['count_previous']
-    return grp
-
+# ---- Time-shifted columns (partition by ward, primary_type; order by date) ----
 df_target = (
-    df_null_sorted
+    df_null
+    .sort_values(['ward', 'primary_type', 'date'])
     .groupby(['ward', 'primary_type'], group_keys=False)
-    .apply(add_shifts)
-    .sort_values(['date', 'ward', 'primary_type'])
-    .reset_index(drop=True)
+    .apply(lambda g: g.assign(
+        count_previous=g['count_0'].shift(1),
+        count_1=g['count_0'].shift(-1),
+        count_2=g['count_0'].shift(-2),
+        count_3=g['count_0'].shift(-3),
+        count_4=g['count_0'].shift(-4),
+    ))
 )
+df_target['delta_count'] = df_target['count_0'] - df_target['count_previous']
+df_target = df_target.sort_values(['date', 'ward', 'primary_type']).reset_index(drop=True)
 
-print(f"\ndf_target records: {len(df_target):,}")
-print(f"\ndf_target columns: {df_target.columns.tolist()}")
-print(f"\ndf_target head:")
-print(df_target.head(10).to_string())
+print('\ndf_target: primary_type=THEFT, ward=27:')
+print(df_target[(df_target['primary_type'] == 'THEFT') & (df_target['ward'] == 27)].to_string())
 
-# ── 19. THEFT ward 27 in df_target ───────────────────────────────────────────
-mask = (df_target['primary_type'] == 'THEFT') & (df_target['ward'] == 27)
-print(f"\ndf_target: primary_type=THEFT, ward=27:")
-print(df_target[mask].to_string())
-
-# ── 20. Build df_ttv (add ran_num) and df_ttvf (add TTV) ──────────────────────
-date_validate = pd.Timestamp('2025-04-15')
-
+# ---- TTVF labels ----
 df_ttv = df_target.copy()
-df_ttv['ran_num'] = rng.uniform(0, 1, size=len(df_ttv))
+df_ttv['ran_num'] = np.random.uniform(0, 1, len(df_ttv))
 
-conditions = [
-    (df_ttv['date'] <  date_validate) & (df_ttv['ran_num'] <= 0.667),
-    (df_ttv['date'] <  date_validate) & (df_ttv['ran_num'] >  0.667),
-    (df_ttv['date'] >  date_validate) & (df_ttv['date'] <  date_max),
-    (df_ttv['date'] >= date_max),
-]
-choices = ['train', 'test', 'validate', 'forecast']
+date_validate = pd.Timestamp(date_max.year, date_max.month, 1)
+date_tt = date_validate - pd.DateOffset(months=5)
+print(f'date_min:      {date_min}')
+print(f'date_max:      {date_max}')
+print(f'date_validate: {date_validate}')
+print(f'date_tt:       {date_tt}')
 
-df_ttvf = df_ttv.copy()
-df_ttvf['TTVF'] = np.select(conditions, choices, default=pd.NA)
+def assign_ttvf(row):
+    d = row['date']
+    if d >= date_validate:
+        return 'forecast'
+    elif d > date_tt:
+        return 'validate'
+    elif row['ran_num'] <= 0.667:
+        return 'train'
+    else:
+        return 'test'
 
-print(f"\ndate_validate: {date_validate.date()}")
-print(f"\nTTVF value counts:")
-print(df_ttvf['TTVF'].value_counts().to_string())
+df_ttv['TTVF'] = df_ttv.apply(assign_ttvf, axis=1)
 
-# ── 21. BURGLARY ward 22 in df_ttvf ──────────────────────────────────────────
-mask = (df_ttvf['primary_type'] == 'BURGLARY') & (df_ttvf['ward'] == 22)
-print(f"\ndf_ttvf: primary_type=BURGLARY, ward=22:")
-print(df_ttvf[mask].to_string())
+# Drop columns
+df_ttvf = df_ttv.drop(columns=['arrest', 'domestic', 'count_previous', 'ran_num'])
 
-# ── 22. Save df_ttvf ──────────────────────────────────────────────────────────
-df_ttvf.to_csv('data/df_ttvf.csv', index=False)
-print(f"\nSaved data/df_ttvf.csv  ({len(df_ttvf):,} records)")
+# Reorder: date first, target columns and TTVF last
+meta_cols = [c for c in df_ttvf.columns
+             if c not in ['date', 'delta_count', 'count_0', 'count_1', 'count_2', 'count_3', 'count_4', 'TTVF']]
+final_cols = ['date'] + meta_cols + ['delta_count', 'count_0', 'count_1', 'count_2', 'count_3', 'count_4', 'TTVF']
+df_ttvf = df_ttvf[final_cols]
 
-# ── 23. Build dt_monthly (drop columns, reorder, drop NaN delta_count non-forecast) ──
-dt_monthly = df_ttvf.drop(columns=['arrest', 'domestic', 'count_previous', 'ran_num'])
+# Drop records where delta_count is NaN AND TTVF != 'forecast'
+dt_monthly = df_ttvf[~(df_ttvf['delta_count'].isna() & (df_ttvf['TTVF'] != 'forecast'))].copy()
+dt_monthly = dt_monthly.reset_index(drop=True)
 
-tail_cols = ['delta_count', 'count_0', 'count_1', 'count_2', 'count_3', 'count_4', 'TTVF']
-other_cols = [c for c in dt_monthly.columns if c not in ['date'] + tail_cols]
-dt_monthly = dt_monthly[['date'] + other_cols + tail_cols]
+print('\ndt_monthly: primary_type=BURGLARY, ward=22:')
+print(dt_monthly[(dt_monthly['primary_type'] == 'BURGLARY') & (dt_monthly['ward'] == 22)].to_string())
 
-# Drop rows where delta_count is NaN and TTVF is not 'forecast'
-drop_mask = dt_monthly['delta_count'].isna() & (dt_monthly['TTVF'] != 'forecast')
-dt_monthly = dt_monthly[~drop_mask].reset_index(drop=True)
-
-print(f"\ndt_monthly columns: {dt_monthly.columns.tolist()}")
-print(f"\ndt_monthly records: {len(dt_monthly):,}")
-
-# ── 24. Save dt_monthly ───────────────────────────────────────────────────────
+# ---- Save ----
 dt_monthly.to_csv('data/crimes_monthly.csv', index=False)
-print(f"\nSaved data/crimes_monthly.csv  ({len(dt_monthly):,} records)")
-
-# ── 25. BURGLARY ward 22 in dt_monthly ───────────────────────────────────────
-mask = (dt_monthly['primary_type'] == 'BURGLARY') & (dt_monthly['ward'] == 22)
-print(f"\ndt_monthly: primary_type=BURGLARY, ward=22:")
-print(dt_monthly[mask].to_string())
+print('\nSaved data/crimes_monthly.csv')
