@@ -6,29 +6,29 @@ branch=main
 
 ## Project
 
-This repository is for the Chicago crime-forcasting project
+This repository is for the Chicago crime-forcasting project.
+This project's github is at https://github.com/joehahn/chicago_crime_forecast
+Always use python3 instead of python when running scripts
 
-1 This project's github is at https://github.com/joehahn/chicago_crime_forecast
-
-2 Start claude
+To start Claude:
 
     claude
 
-3 Prompt claude to download chicago crime data
+Begin by prompting claude to download chicago crime data
 
     @get_data.txt
 
-4 Prompt claude to explore and visualize crime data
+Tehn prompt claude to explore and visualize crime data
 
     @explore_data.txt
 
 and inspect the plots that the above published in data_exploration.html
 
-5 tell claude to create the prep_data script
+Then tell claude to create the prep_data script
 
     @prep_data.txt
 
-6 
+Then...
 
 
 
