@@ -28,7 +28,7 @@ and inspect the plots that the above published in data_exploration.html
 
     @prep_data.txt
 
-6
+6 
 
 
 

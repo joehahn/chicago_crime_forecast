@@ -37,6 +37,14 @@ mask = ~df_clean["primary_type"].isin(exclude)
 df_filtered = df_clean[mask].copy()
 print(f"\nRecords in df_filtered: {len(df_filtered):,}")
 
+# Display 1 random record
+print("\nRandom record from df_filtered:")
+print(df_filtered.sample(1).to_string())
+
+# Min and max date
+print(f"\nMin date: {df_filtered['date'].min()}")
+print(f"Max date: {df_filtered['date'].max()}")
+
 # Save to CSV
 output_path = "data/crimes.csv"
 df_filtered.to_csv(output_path, index=False)

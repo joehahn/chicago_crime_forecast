@@ -10,6 +10,7 @@ for a description of that data.
 Begin by ownloading the latest crime data from the Chicago Data Portal at data.cityofchicago.org. 
 Use the Socrata API endpoint for the Crimes dataset (dataset ID: ijzp-q8t2). 
 Fetch records from the past 4 years and store that result in object df_raw.
+Always re-download the data from the source website, do not use cached data stored locally.
 How many records are in df_raw?
 
 Inspect each text column in df_raw (such as the 'description' column), and mitigate any problematic carraige returns.
@@ -20,5 +21,9 @@ Display a count of primary_type in df_clean
 Filter out from df_clean those records whose primary_type include
     CRIMINAL SEXUAL ASSAULT, OFFENSE INVOLVING CHILDREN, SEX OFFENSE, PROSTITUTION 
 and store that result in object df_filtered. How many records are in df_filtered?
+
+Display 1 random record from df_filtered
+
+What are the minimum and maximum values of date?
 
 Save df_filtered in file data/crimes.csv
