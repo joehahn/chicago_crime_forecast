@@ -4,9 +4,10 @@ jmh.datasciences@gmail.com
 2026-April-8
 
 The following will prepare the Chicago crime data for training ML models to orecast crimes across that city.
-Execute the following completely from scratch. 
+Execute the following completely from scratch and starting fresh.
 Do not use any cached results, temporary files, or previously computed outputs. 
-Do not gather any files using git
+Do not gather any files using git.
+Do not utliize and files previously stored in /tmp
 Clear any cache files first, then execute everything fresh.
 
 Begin by loading file data/crimes.csv into object df_filtered.
