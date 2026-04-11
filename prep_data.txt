@@ -24,29 +24,32 @@ Display 1 random record in df_20, show all columns
 
 What are the column types in df_20?
 
-Display minumum date and maximum date
+Display minumum date and maximum date in df_20
 
 Group df_20 by year, month, ward, primary_type and calculate 
-    first date of the month(timestamp) as 'date',  
     mean(arrest), 
     mean(domestic), 
     mean(latitude), 
     mean(longitude), 
     count(id) as 'count_0', 
-Drop 'min_', 'max_, 'mean_' from all new columns. 
+Drop 'mean_' from all new columns. 
 Cast ward column as integer. 
-Reorder columns so that date is first and count_0 is last.
-Order all records by date, ward, primary_type.
+Also add column 'day' containing integer 1.
+Reorder columns so that count_0 is last.
+Order all records by year, month, ward, primary_type.
 Name this new result df_avg. How many records are in df_avg?
 
-Which ward in df_avg has the greatest sum(count_0) among primary_type=THEFT records?
-Show all records in df_avg having primary_type=THEFT and ward=42
+Set df_date=df_20 and add a new column called 'date' that is derived from the year, month, and day columns.
 
-Show all records in df_avg having primary_type=ARSON and ward=42
+Which ward  in df_date has the greatest sum(count_0) among primary_type=THEFT records?
 
-Use the year, month, ward, primary_type columns to determine which records are missing from df_avg. 
-Zero-pad those missing records in df_avg with count_0 set to 0.
-Be sure to also include the missing values in the date, years, and month columns.
+Show all records in df_date having primary_type=THEFT and ward=42
+
+Show all records in df_date having primary_type=ARSON and ward=42
+
+Use the date, ward, primary_type columns to determine which records are missing from df_date. 
+Zero-pad those missing records in df_date with count_0 set to 0.
+Be sure to also include the missing values in the year and month columns.
 Order all records by date, ward, primary_type.
 Store that result in object df_pad.
 How many records are in df_pad?
@@ -74,24 +77,21 @@ Name the resulting object df_target
 Print all records in df_target that have primary_type=THEFT and ward=27
 
 Append a new column to df_target called 'ran_num' that has random floating point values 
-uniformly distributed between 0 and 1, name that result df_tt.
-The create a new column 'TTVFI' in df_tt
-such that all rows in df_tt having ran_num <= 0.667 have TTVFI ='train',
-          all rows in df_tt having ran_num  > 0.667 have TTVFI ='test'.
+uniformly distributed between 0 and 1, name that result df_ttvfi.
+Then create a new column 'TTVFI' in df_ttvfi
+such that all rows in df_ttvfi having ran_num <= 0.667 have TTVFI ='train',
+          all rows in df_ttvfi having ran_num  > 0.667 have TTVFI ='test'.
 
-Set df_ttv=df_tt
-and set last_few_dates=the 6 greatest dates in df_ttv,
-and set column TTVFI ='validate' in df_ttv for all records having date in last_few_dates.
+Then set last_few_dates=the 6 greatest dates in df_ttvfi,
+and set column TTVFI ='validate' for all records having date in last_few_dates.
 
-Set set df_ttvf=df_ttv
-and set last_few_dates=the 2 greatest dates in df_ttvf,
-and set column TTVFI ='forecast' in df_ttvf for all records having date in last_few_dates.
+Then set last_few_dates=the 2 greatest dates in df_ttvfi,
+and set column TTVFI ='forecast' for all records having date in last_few_dates.
 
-Set set df_ttvfi=df_ttvf
-and set last_few_dates=the greatest date in df_ttvfi,
-and set column TTVFI='incomeplete' in df_ttvfi for all records having date in last_few_dates.
+Then set last_few_dates=the greatest date in df_ttvfi,
+and set column TTVFI ='incomeplete' for all records having date in last_few_dates.
 
-Then drop these columns from df_ttvfi: arrest, domestic , count_previous, ran_num
+Then drop these columns from df_ttvfi: arrest, domestic, count_previous, ran_num
 Name that new result dt_monthly.
 
 Drop from dt_monthly all records having delta_count=NaN
