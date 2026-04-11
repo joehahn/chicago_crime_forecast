@@ -28,7 +28,11 @@ Then tell claude to create the prep_data script
 
     @prep_data.txt
 
-Then...
+Then train the seasonal ML model on the output of the above via
+
+    @seasonal_model.txt
+
+and...
 
 
 

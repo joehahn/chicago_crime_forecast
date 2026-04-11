@@ -1,106 +1,43 @@
+seasonal_model.txt
+by Joe Hahn
+jmh.datasciences@gmail.com
+2026-April-11
 
-The following will prepare the Chicago crims data for training ML models to 
-forecast crimes across that city.
+The following will train the so-called seasonal model on the monthly Chicago crimes data.
 
-Begin by loading file data/crimes_filtered.csv into object df_filtered
+Execute the following completely from scratch and starting fresh.
+Do not use any cached results, temporary files, or previously computed outputs. 
+Do not gather any files using git.
+Do not utliize any files previously stored in /tmp
+Clear any cache files first, then execute everything fresh.
 
-Then start with df_filtered and rename the 'date' column as 'timestamp'.
-And derive the month of the year from the timestamp column and name that new column 'month'.
-Then preserve only those records whose primary_type are among the top 20.
-Store results in object df_20. How many records are in df_20?
+Begin by loading file data/crimes_monthly.csv into object df_monthly
 
-Set date_min=minimum date in df_20, and date_max=maximum date
+And then set df_train = all records in df_monthly having TTVFI='train', keeping only the 
+year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4 columns.
 
-Display counts of primary_type in df_20
+Set df_test = all records in df_monthly having TTVFI ='test', preserving the same columns. 
+And set df_validate = all records in df_monthly TTVFI TTV='validate', preserving the same columns. 
+And set df_forecast = all records in df_monthly TTVFI TTV='forecast', preserving the same columns. 
+How many records are in df_train, df_test, df_validate, df_forecast?
 
-Display 1 random record in df_20, show all columns
+Show 5 random records from df_train
 
-What are the column types in df_20?
+Train an XGBoost machine learning model on df_train. 
+That model's features are the year, month, ward, primary_type, delta_count , count_0 columns, 
+and that model's target variable is count_1,
+with df_test being the testing sample of data. Name that trained model seasonal_1.
 
-Group df_20 by year, month, ward, primary_type and calculate 
-    first date of the month(timestamp) as 'date',  
-    mean(arrest), 
-    mean(domestic), 
-    mean(latitude), 
-    mean(longitude), 
-    count(id) as 'count_0', 
-Drop 'min_', 'max_, 'mean_' from all new columns. 
-Cast ward column as integer. 
-Reorder columns so that date is first and count_0 is last.
-Order all records by date, ward, primary_type.
-Name this new result df_avg. How many records are in df_avg?
+Then train an XGBoost on df_train using the same features to predict count_2, name that trained model seasonal_2.
+Then train an XGBoost on df_train using the same features to predict count_3, name that trained model seasonal_3.
+Then train an XGBoost on df_train using the same features to predict count_4, name that trained model seasonal_4.
 
-Which ward in df_avg has the greatest sum(count_0) among primary_type=THEFT records?
-Show all records in df_avg having primary_type=THEFT and ward=42
+Show the feature importance for models seasonal_1, seasonal_2, seasonal_3, seasonal_4
 
-Show all records in df_avg having primary_type=ARSON and ward=42
+Set df_predict = df_validate. Use seasonal_1 to generate predictions on df_predict, and append those predictions to
+df_predict as new column called 'count_1_pred'. Then do similar using seasonal_2, seasonal_3, seasonal_4
 
-Use the year, month, ward, primary_type columns to determine which records are missing from df_avg. 
-Zero-pad those missing records in df_avg with count_0 set to 0.
-Be sure to also include the missing values in the date, years, and month columns.
-Order all records by date, ward, primary_type.
-Store that result in object df_pad.
-How many records are in df_pad?
-
-Show all records in df_pad having primary_type=ARSON and ward=42
-
-For each column in df_pad, find any NaN values and replace them with random selections of non-NaN values.
-Store that result in object df_nan.
-
-Show all records in df_nan having primary_type=ARSON and ward=22
-
-Now NaN-pad df_nan out to date_max + 4 months. 
-Use the year, month, ward, primary_type columns to determine which records are missing from df_nan. 
-Store that result in df_null.
-
-Show all records in df_null having primary_type=ARSON and ward=22
-
-Print 5 random records in df_null
-
-Partition df_null by year, month, ward, primary_type and order by date.
-Append a new column count_previous which is count_0 shifted backwards in time by 1 month.
-Append a new column count_1 which is count_0 shifted forwards in time by 1 month.
-Also append a new column count_2 which is count_0 shifted forwards in time by 2 months.
-And append another new column count_3 which is count_0 shifted forwards in time by 3 months.
-And append another new column count_4 which is count_0 shifted forwards in time by 4 months.
-Set delta_count = count_0 - count_previous
-Dont drop any records due to missing data, instead use NaN to indicate any missing future data.
-Name that result df_target
-
-Print all records in df_target that have primary_type=THEFT and ward=27
-
-append a new column to df_target called 'ran_num' that has random floating point values 
-uniformly distributed between 0 and 1, name that result df_ttv.
-Set date_validate='2025-04-15'
-The create a new column 'TTV' in df_ttvf
-such that all rows having date < date_validate and ran_num <= 0.667 have TTV='train',
-          all rows having date < date_validate and ran_num  > 0.667 have TTV='test',
-          all rows having date_validate < date < date_max have TTV='validate'
-      and all rows having date >= date_max have TTV='forecast'
-
-
-show all records in df_ttvf having primary_type=BURGLARY and ward=22
-
-Save df_ttvf as file data/df_ttvf.csv
-
-21 let df_train = all records in df_ttv having TTV='train', keeping only the 
-year, month, week, ward, primary_type, count_0, count_1, count_2, count_3 columns.
-let df_test = all records in df_ttv having TTV='test', preserving the same columns. 
-And let df_validate = all records in df_ttv having TTV='validate', preserving the same columns. 
-How many records are in df_train, df_test, df_validate?
-
-22 show 5 random records from df_train
-
-23 train an XGBoost machine learning model on df_train. That model's features are the
-year, month, week, ward, primary_type, count_0 columns, and that model's target variable is count_1,
-with df_test being the testing sample of data. name that trained model model_1.
-Then train an XGBoost on df_train using the same features to predict count_2, name that trained model model_2.
-And also train an XGBoost on df_train using the same features to predict count_3, name that trained model model_3.
-
-24 let df_predict = df_validate. Use model_1 to generate predictions on df_predict, and append those predictions to
-df_predict as new column called 'count_1_pred'. Then do similar using model_2 and model_3
-
-25 show all records in df_predict having primary_type=THEFT and ward=27
+Show all records in df_predict having primary_type=THEFT and ward=27
 
 26 use df_predict to create a dashboard of plots that compare model predictions to actuals:
 
