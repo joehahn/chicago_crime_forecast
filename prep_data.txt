@@ -89,7 +89,7 @@ and set column TTVFI ='forecast' in df_ttvf for all records having date in last_
 
 Set set df_ttvfi=df_ttvf
 and set last_few_dates=the greatest date in df_ttvfi,
-and set column TTVFI='ignore' in df_ttvfi for all records having date in last_few_dates.
+and set column TTVFI='incomeplete' in df_ttvfi for all records having date in last_few_dates.
 
 Then drop these columns from df_ttvfi: arrest, domestic , count_previous, ran_num
 Name that new result dt_monthly.
