@@ -32,7 +32,7 @@ Then train the seasonal ML model on the output of the above via
 
     @seasonal_model.txt
 
-and...
+and inspect seasonal_model_dashboard.html to see various model validation reports
 
 
 
