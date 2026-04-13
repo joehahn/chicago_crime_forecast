@@ -44,7 +44,7 @@ Show all records in df_validate having primary_type=THEFT and ward=27
 
 Next, create a dashboard of model validation tables and plots:
 
-First show a table of model validatation scores for models seasonal_1, seasonal_2, seasonal_3, seasonal_4.
+First use df_test to show a table of model validatation scores for models seasonal_1, seasonal_2, seasonal_3, seasonal_4.
 Include MAE and RMSE and R2 scores.
 
 Insert the feature importance's for models seasonal_1, seasonal_2, seasonal_3, seasonal_4 into a dataframe.

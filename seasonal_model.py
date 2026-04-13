@@ -139,11 +139,11 @@ scatter_specs = [
     (6, 'count_4', 'count_4_pred', 'seasonal_4'),
 ]
 
-# ---- Validation scores (computed on df_validate) ----
+# ---- Validation scores (computed on df_test) ----
 print('\n=== Validation scores ===')
 score_rows = []
 for _, act_col, pred_col, mname in scatter_specs:
-    df_s = df_validate[[act_col, pred_col]].dropna()
+    df_s = df_test[[act_col, pred_col]].dropna()
     mae  = mean_absolute_error(df_s[act_col], df_s[pred_col])
     rmse = np.sqrt(mean_squared_error(df_s[act_col], df_s[pred_col]))
     r2   = r2_score(df_s[act_col], df_s[pred_col])
@@ -155,7 +155,7 @@ print(scores_df.to_string(index=False))
 fig = make_subplots(
     rows=9, cols=1,
     subplot_titles=[
-        'Table: Validation scores (df_validate)',
+        'Table: Validation scores (df_test)',
         'Table: Feature importance',
         'Plot 1: seasonal_1 predictions vs actuals – df_test (count_1)',
         'Plot 2: seasonal_2 predictions vs actuals – df_test (count_2)',
@@ -187,7 +187,7 @@ fig.add_trace(go.Table(
 # ---- Table 2: feature importance (row 2) ----
 fi_str = fi_df.copy()
 for col in ['seasonal_1', 'seasonal_2', 'seasonal_3', 'seasonal_4']:
-    fi_str[col] = fi_str[col].astype(str).str[:6]
+    fi_str[col] = fi_str[col].astype(str).str[:5]
 fig.add_trace(go.Table(
     header=dict(values=['Feature', 'seasonal_1', 'seasonal_2', 'seasonal_3', 'seasonal_4'],
                 fill_color='steelblue', font=dict(color='white'), align='center'),
