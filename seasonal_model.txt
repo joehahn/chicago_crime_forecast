@@ -13,12 +13,12 @@ Clear any cache files first, then execute everything fresh.
 
 Begin by loading file data/crimes_monthly.csv into object df_monthly
 
-And then set df_train = all records in df_monthly having TTVFI='train', keeping only the 
-year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4 columns.
+And then set df_train = all records in df_monthly having TTV='train', 
+keeping only the date, year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4 columns.
 
-Set df_test = all records in df_monthly having TTVFI ='test', preserving the same columns. 
-And set df_validate = all records in df_monthly TTVFI TTV='validate', preserving the same columns. 
-And set df_forecast = all records in df_monthly TTVFI TTV='forecast', preserving the same columns. 
+Set df_test = all records in df_monthly having TTV='test', preserving the same columns. 
+And set df_validate = all records in df_monthly having TTV='validate', preserving the same columns. 
+And set df_forecast = all records in df_monthly having TTV='forecast', preserving the same columns. 
 How many records are in df_train, df_test, df_validate, df_forecast?
 
 Show 5 random records from df_train
@@ -35,80 +35,83 @@ Then train an XGBoost on df_train using the same features to predict count_4, na
 Use the seasonal_1 model to generate predictions on df_test, and append those predictions to
 df_test as new column called 'count_1_pred'. Then do similar using the seasonal_2, seasonal_3, seasonal_4 models
 
-Show all records in df_test having primary_type=THEFT and ward=27
-
 Then do the same for df_validate.
 
-Show all records in df_validate having primary_type=THEFT and ward=27
+Then do the same for df_forecast.
 
+Show all records in df_validate having primary_type=THEFT and ward=27
+Show all records in df_forecast having primary_type=THEFT and ward=27
+
+Save models seasonal_1, seasonal_2, seasonal_3, seasonal_4 to a file or files.
 
 Next, create a dashboard of model validation tables and plots:
 
-First use df_test to show a table of model validatation scores for models seasonal_1, seasonal_2, seasonal_3, seasonal_4.
+Plot 1: Start with df_monthly, then groupby date, TTV and compute sum(count_0) as total_count.
+Then sum the train + test timeseries and plot that sum versus date.
+Then plot the validation timeseries versus date.
+And plot the forecast timeseries versus date.
+Use connected scatterplot and color code by TTV.
+
+Table 1: Then use df_validate to show a table of model validatation scores for models seasonal_1, seasonal_2, seasonal_3, seasonal_4.
 Include MAE and RMSE and R2 scores.
 
-Insert the feature importance's for models seasonal_1, seasonal_2, seasonal_3, seasonal_4 into a dataframe.
+Table 2: Insert the feature importance's for models seasonal_1, seasonal_2, seasonal_3, seasonal_4 into a dataframe.
 Convert that dataframe to string
 Then preserve the first 5 characters of all values in that dataframe
 Use that dataframe to show a table of each model's feature importance
 
-plot 1: use df_test to scatterplot of seasonal_1 predictions versus actuals. 
-Use logarithmic axes ranging from 0.5 to 700.
+plot 2: use df_validate to scatterplot of seasonal_1 predictions versus actuals. 
+Use logarithmic horizontal axes ranging from 0.8 to 600.
+Use logarithmic vertical axes ranging from 0.2 to 600.
 Do not distinguish between the different crimes or wards.
 Do not add 0.5 to the predictions or actuals.
 Only include points whose predictions and actuals are > 0
-Use blue opaque points.
-Also overplot y=x via a dashed line
+Use opaque green dots for records whose count_0 are in the middlemost 80% of the data,
+And opaque red dots for records whose count_0 are in the outermost 20%.
+Also overplot y=x via a dashed line, and label that line 'prediction=actual'
 
-plot 2: same as plot 1 but for seasonal_2
+plot 3: same as plot 1 but for seasonal_2
 
-plot 3: same as plot 1 but for seasonal_3
+plot 4: same as plot 1 but for seasonal_3
 
-plot 4: same as plot 1 but for seasonal_4
+plot 5: same as plot 1 but for seasonal_4
 
-plot 5: use df_validate to show timeseries plots of summed count_0 for all THEFT records versus date.
+plot 6: use df_validate to show timeseries plots of summed count_0 for all THEFT records versus date.
+Also put vertical errorbars on the count_0 curve, assume each errorbar extends up/down by sqrt(count_0)
 Then overplot summed count_1_pred versus date + 1 month
 Then overplot summed count_2_pred versus date + 2 month
 Then overplot summed count_3_pred versus date + 3 month
 Then overplot summed count_4_pred versus date + 4 month
-Add legend to lower right corner of this plot
 
-plot 6: same as plot 5 but for ASSAULT
+Add legend to upper right corner of this plot
 
-plot 7: same as plot 7 but for ARSON
+plot 7: same as plot 5 but for BURGLARY
 
-stack each plot vertically
+plot 8: same as plot 7 but for ARSON
+
+plot 9: use df_validate to show timeseries plots of summed count_0 for all primary_type for wards 27, 29, and 38 vesus date.
+Also put vertical errorbars on the count_0 curve, assume each errorbar extends up/down by sqrt(count_0)
+Then overplot summed count_1_pred versus date + 1 month
+Then overplot summed count_2_pred versus date + 2 month
+Then overplot summed count_3_pred versus date + 3 month
+Then overplot summed count_4_pred versus date + 4 month
+Use red for ward 27 plots.
+Use blue for ward 29 plots.
+Use green for ward 38 plots.
+The plot's vertical axis should use logarithmic axis.
+Add legend to upper right corner of this plot
+Show as connected scatterplots
+
+plot 10: read file data/crimes.csv and select all of the primar_type=THEFT records that occurred in March of 2026.
+Use the latitude,longitude of those records to superimpose a heatmap of those THEFTS on top of a streetmap of chicago
+Use logarithmic scaling to colorizing the THEFTS.
+This plot's longitude's should range over -87.85 to -87.5 
+
+Stack each plot or chart vertically.
+Use no more than 10px of margin/padding between plots and tables. Set gap, margin, and padding to minimal values throughout.
+Create a distinct, self-contained legend for each individual plot. Do not share or consolidate legends across plots. 
+Set the vertical space between adjacent tables to 10px.
+Also set the vertical space between a table and a plot at 10px.
+Every chart must have its own legend embedded within it.
 Store that dashboard as an html file named seasonal_model_dashboard.html
-
-
-plot 6: use df_validate  to show timeseries plots of summed actual and predicted crimes for wards 27, 32, 38 versus date for seasonal_1
-using different colors for the different crimes. The plot's vertical axis should use logarithmic axis.
-Show connected scatterplot
-
-
-
-plot 5: same as plot 4 but for model_2 
-
-plot 6: same as plot 4 but for model_3
-
-plot 7: show timeseries plots of summed actual and predicted for wards 27, 32, 38 versus date for model_1
-using different colors for the different crimes. The plot's vertical axis should use logarithmic axis
-
-plot 8: same as plot 7 but for model_2
-
-plot 9: same as plot 7 but for model_3
-
-plot 10: timeseries plot of count_0 versus date for THEFT in ward 27,
-as well as date + 1 week versus count_1_pred
-and date + 2 week versus count_2_pred
-and date + 3 week versus count_3_pred
-
-stack each plot vertially
-Store that dashboard as an html file named seasonal_model_dashboard.html
-
-27 get all records in df_predict having primary_type=THEFT and ward=27, and show:
-date, count_0, date+1 week, count_1, date+2 weeks, count_2, date+3 weeks, count_3 
-
-
-
 
