@@ -51,6 +51,8 @@ Then do the same for df_validate.
 
 Then do the same for df_forecast.
 
+Do not store any predictions to csv files
+
 Show 5 random records from df_validate
 
 
