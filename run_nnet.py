@@ -90,10 +90,6 @@ df_test = predict(df_test)
 df_validate = predict(df_validate)
 df_forecast = predict(df_forecast)
 
-df_test.to_csv('df_test_with_predictions.csv', index=False)
-df_validate.to_csv('df_validate_with_predictions.csv', index=False)
-df_forecast.to_csv('df_forecast_with_predictions.csv', index=False)
-
 print("\n5 random records from df_validate:")
 print(df_validate.sample(5, random_state=1))
 
