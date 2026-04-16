@@ -1,7 +1,7 @@
 # CLAUDE.md
 **Author:** Joe Hahn  
 **Email:** jmh.datasciences@gmail.com  
-**Date:** 2026-April-7
+**Date:** 2026-April-7 <br>
 **branch** main
 
 ## Project
@@ -35,7 +35,7 @@ Tell claude to create the prep_data script
 ## 3. train the so-called seasonal ML model
 
 
-Train the seasonal ML model on the output of the above via
+Instruct Claude to train the seasonal ML model on the output of the above via
 
     @seasonal_model.txt
 
@@ -44,7 +44,7 @@ and inspect seasonal_model_dashboard.html to see various model validation report
 
 ## 4. train a simple neural network using Keras/Tensorflow
 
-Train the neural network model
+Prompt Claude to train the neural network model
 
     @seasonal_model.txt
 
