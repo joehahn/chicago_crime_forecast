@@ -50,7 +50,7 @@ Infrastructure (OCI), with Figure 1 showing the solution's key
 components.
 
 <figure>
-<img src="media/image1.png" style="width:4.65385in;height:4.41442in" />
+<img src="media/architecture.png" style="width:4.65385in;height:4.41442in" />
 <figcaption><p>Figure 1. Cloud architecture of the Select AI Agent
 solution deployed on OCI. The lower left corner shows the Agent
 Developer using an OML Notebook, which is provided by Autonomous AI
