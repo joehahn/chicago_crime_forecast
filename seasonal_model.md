@@ -123,7 +123,7 @@ Read `data/crimes.csv` and select all records with `primary_type = THEFT` that o
 
 - **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
 - **y-axis:** `latitude`, running from `41.65` to `42.05`.
-- Logarithmic color scaling applied to the binned counts.
+- Linear color scaling applied to the binned counts.
 - A geographic aspect ratio (so that one degree of latitude and one degree of longitude represent equal distances on the ground at Chicago's latitude, ≈ 41.85°).
 
 ## Dashboard layout
