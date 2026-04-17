@@ -39,7 +39,7 @@ Tell claude to create the prep_data script
 
 Instruct Claude to train the seasonal ML model on the output of the above via
 
-    @seasonal_model.txt
+    @seasonal_model.md
 
 and inspect seasonal_model_dashboard.html to see various model validation reports
 
@@ -48,7 +48,7 @@ and inspect seasonal_model_dashboard.html to see various model validation report
 
 Prompt Claude to train the neural network model
 
-    @seasonal_model.txt
+    @seasonal_model.md
 
 and inspect nnet_dashboard.html to see model validation reports
 
