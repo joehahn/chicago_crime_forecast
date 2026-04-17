@@ -194,49 +194,32 @@ its fingertips. The PL/SQL code that defines our Agent’s Task is:
 
 ```sql
 BEGIN
-
 DBMS_CLOUD_AI_AGENT.create_task(
-
 task_name =\> 'SALES_TASK',
-
 attributes =\> '{"Instruction": "Process this request:{query} per the
 following:' \|\|\
 '1. If the request can be satisfied by querying database tables,' \|\|\
 'then use the \`SALES_SQL_TOOL\` to satisfy the request' \|\|
-
 'Use the \`SALES_SQL_TOOL\` when the request is about product sentiment
 scores.' \|\|
-
 '2. If the request is about products and their descriptions,' \|\|
-
 'then use the \`SALES_PRODUCT_RAG_TOOL\` to satisfy the request.' \|\|
-
 'Use the \`SALES_PRODUCT_RAG_TOOL\` when comparing product
 descriptions.' \|\|
-
 '3. If the request is about what customers said in their social media
 posts about various products they purchased,' \|\|
-
 'then use the \`SALES_SOCIAL_RAG_TOOL\` to satisfy the user request.'
 \|\|
-
 '4. If the request can be satisfied by performing a WEBSEARCH,' \|\|
-
 'then use the \`SALES_WEB_TOOL\` to satisfy the user request.' \|\|
-
 'Also state which particular online references were used to derive the
 answer.' \|\|
-
 '5. Use the SALES_PRODUCT_RAG_TOOL or the SALES_SOCIAL_RAG_TOOL tool
 before using the WEBSEARCH tool.",
-
 "tools": \["SALES_SQL_TOOL", "SALES_PRODUCT_RAG_TOOL",
 "SALES_SOCIAL_RAG_TOOL", "SALES_WEB_TOOL"\]}'
-
 );
-
 END;
-
 /
 ```
 
