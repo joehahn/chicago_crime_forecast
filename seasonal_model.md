@@ -83,6 +83,7 @@ Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (ac
 - Include only points whose prediction AND actual are `> 0`.
 - Use opaque **green** dots for records whose `count_0` falls in the middlemost 80% of the data, and opaque **red** dots for records in the outermost 20%.
 - Overplot `y = x` as a dashed line labeled `prediction=actual`.
+- Place the legend in the **lower-right corner** of the plot.
 
 ### Plot 3 — same as Plot 2 but for `seasonal_2`
 ### Plot 4 — same as Plot 2 but for `seasonal_3`
@@ -117,8 +118,13 @@ Color coding:
 
 Use a logarithmic y-axis. Add a legend in the upper-right corner. Render as connected scatter plots.
 
-### Plot 10 — THEFT heatmap over a Chicago street map
-Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in March 2026. Use the `latitude` and `longitude` of those records to superimpose a heatmap on top of a Chicago street map. Use logarithmic scaling to colorize the heatmap. Longitude must range from `-87.85` to `-87.5`.
+### Plot 10 — THEFT heatmap
+Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in March 2026. Render a 2-D density heatmap of those records' geographic locations with:
+
+- **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
+- **y-axis:** `latitude`, running from `41.65` to `42.05`.
+- Logarithmic color scaling applied to the binned counts.
+- A geographic aspect ratio (so that one degree of latitude and one degree of longitude represent equal distances on the ground at Chicago's latitude, ≈ 41.85°).
 
 ## Dashboard layout
 

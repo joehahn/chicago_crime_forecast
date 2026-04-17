@@ -229,6 +229,10 @@ def pred_vs_actual_figure(target_col, pred_col, title):
                              line=dict(color="black", dash="dash", width=1)))
     fig.update_xaxes(type="log", range=[np.log10(0.8), np.log10(600)], title_text="actual")
     fig.update_yaxes(type="log", range=[np.log10(0.2), np.log10(600)], title_text="prediction")
+    fig.update_layout(legend=dict(
+        x=0.99, y=0.01, xanchor="right", yanchor="bottom",
+        bgcolor="rgba(255,255,255,0.8)", bordercolor="#ccc", borderwidth=1,
+    ))
     return fig
 
 fig2 = pred_vs_actual_figure("count_1", "count_1_pred", "Plot 2 — seasonal_1 predictions vs. actuals (log-log)")
@@ -300,7 +304,7 @@ fig9.update_yaxes(type="log", title_text="summed count_0 (log)")
 
 
 # ---------------------------------------------------------------------------
-# Plot 10 — THEFT density heatmap on a Chicago street map, March 2026
+# Plot 10 — THEFT density heatmap (xy plot with geographic aspect), March 2026
 # ---------------------------------------------------------------------------
 print(f"\nLoading {RAW_PATH} for Plot 10 heatmap ...")
 df_raw = pd.read_csv(RAW_PATH, usecols=["date", "primary_type", "latitude", "longitude"],
@@ -312,33 +316,41 @@ mar = df_raw[
     & df_raw["latitude"].notna()
     & df_raw["longitude"].notna()
 ].copy()
+mar["neg_longitude"] = -mar["longitude"]
 print(f"  THEFT records in March 2026: {len(mar):,}")
 
-# Bin to a grid and take log for logarithmic color scaling.
-lon_bins = np.linspace(-87.85, -87.5, 80)
-lat_bins = np.linspace(41.65, 42.05, 80)
-H, lon_edges, lat_edges = np.histogram2d(mar["longitude"], mar["latitude"], bins=[lon_bins, lat_bins])
-lon_centers = 0.5 * (lon_edges[:-1] + lon_edges[1:])
-lat_centers = 0.5 * (lat_edges[:-1] + lat_edges[1:])
-LON, LAT = np.meshgrid(lon_centers, lat_centers, indexing="ij")
-nonzero = H > 0
-log_count = np.log10(H[nonzero])
+# Bin onto a 2-D grid in (-longitude, latitude) space.
+x_bins = np.linspace(87.5, 87.85, 80)   # -longitude bin edges (ascending)
+y_bins = np.linspace(41.65, 42.05, 80)  # latitude bin edges
+H, x_edges, y_edges = np.histogram2d(mar["neg_longitude"], mar["latitude"], bins=[x_bins, y_bins])
+x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
+y_centers = 0.5 * (y_edges[:-1] + y_edges[1:])
 
-fig10 = go.Figure(go.Densitymapbox(
-    lat=LAT[nonzero],
-    lon=LON[nonzero],
-    z=log_count,
-    radius=10,
+# Logarithmic color scaling: empty cells as NaN (transparent), populated cells as log10(count).
+log_z = np.where(H > 0, np.log10(H), np.nan)
+
+fig10 = go.Figure(go.Heatmap(
+    x=x_centers,
+    y=y_centers,
+    z=log_z.T,  # heatmap expects z[y_index, x_index]
     colorscale="Hot",
     colorbar=dict(title="log₁₀(count)"),
+    hovertemplate=("-longitude: %{x:.4f}<br>"
+                   "latitude: %{y:.4f}<br>"
+                   "log₁₀(count): %{z:.2f}"
+                   "<extra></extra>"),
 ))
 fig10.update_layout(
     title="Plot 10 — THEFT density heatmap, March 2026 (log color scale)",
-    height=600,
-    mapbox_style="open-street-map",
-    mapbox_center=dict(lat=41.85, lon=-87.675),
-    mapbox_zoom=9.2,
-    margin=dict(l=0, r=0, t=50, b=0),
+    height=650,
+    margin=dict(l=60, r=40, t=50, b=60),
+    showlegend=False,
+)
+# Reversed x-axis so 87.85 is on the left, 87.5 on the right.
+fig10.update_xaxes(range=[87.85, 87.5], title_text="-longitude")
+fig10.update_yaxes(
+    range=[41.65, 42.05], title_text="latitude",
+    scaleanchor="x", scaleratio=1.34,  # 1/cos(41.85°) ≈ geographic aspect
 )
 
 
