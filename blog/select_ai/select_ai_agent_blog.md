@@ -117,7 +117,7 @@ Figure 2. This demo’s most important tables are:
   categoric descriptions.
 
 <figure>
-<img src="media/image2.gif" style="width:4.69231in;height:5.57817in" />
+<img src="media/sh_schema.gif" style="width:4.69231in;height:5.57817in" />
 <figcaption><p>Figure 2. Relationships among the tables in the Oracle
 Sales History (SH) schema, and their join keys.</p></figcaption>
 </figure>
