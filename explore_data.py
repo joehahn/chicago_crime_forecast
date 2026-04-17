@@ -142,6 +142,13 @@ fig7 = go.Figure(
             opacity=0.6,
             colorbar=dict(title="ward"),
         ),
+        customdata=scatter_sample[["ward"]].astype(int).values,
+        hovertemplate=(
+            "latitude: %{y:.5f}<br>"
+            "-longitude: %{x:.5f}<br>"
+            "ward: %{customdata[0]}"
+            "<extra></extra>"
+        ),
     )],
     layout=base_layout(
         f"Plot 7 — {SCATTER_SAMPLE_SIZE:,} random locations (latitude vs. -longitude), colored by ward",
