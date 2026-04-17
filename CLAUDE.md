@@ -21,7 +21,7 @@ Begin by prompting claude to download chicago crime data
 
 Then prompt claude to explore and visualize crime data
 
-    @explore_data.txt
+    @explore_data.md
 
 and inspect the plots that the above published in data_exploration.html
 

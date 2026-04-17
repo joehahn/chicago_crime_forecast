@@ -41,7 +41,7 @@ Group `df_20` by `year, month, ward, primary_type` and compute:
 
 Drop the `mean_` prefix from the new columns. Cast `ward` to integer. Add a column `day` containing integer `1`. Reorder columns so that `count_0` is last. Order records by `year, month, ward, primary_type`. Name this result `df_avg`. Report how many records are in `df_avg`.
 
-Set `df_date = df_20` and add a new column `date` derived from the `year`, `month`, and `day` columns.
+Set `df_date = df_avg` and add a new column `date` derived from the `year`, `month`, and `day` columns.
 
 Which ward in `df_date` has the greatest `sum(count_0)` among `primary_type = THEFT` records?
 
