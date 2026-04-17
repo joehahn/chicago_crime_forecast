@@ -21,6 +21,6 @@ Create a data-exploration dashboard showing the following plots of data in `df_f
 - **Plot 6** — timeseries of count of `primary_type = THEFT` vs. time, one trace per `ward`. Logarithmic y-axis running from 10 to 1100. Do not show a legend.
 - **Plot 7** — scatter plot of 10,000 random records: latitude vs. `-longitude`, colorized by `ward`. x-axis from 87.85 (left) to 87.5 (right). y-axis from 41.65 to 42.05. Apply a geographic aspect ratio.
 
-Stack each plot vertically. Spread the plots out so that one plot does not run into the legend of the plot above it.
+Stack each plot vertically with **exactly 20 px of vertical margin/padding (no more, no less) between every pair of adjacent plots, tables, and charts**, so that no element (including axis labels, tick labels, or legends) ever touches or overlaps the one above or below it.
 
 Save the dashboard as `docs/data_exploration.html` (published via GitHub Pages).
