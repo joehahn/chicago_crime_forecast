@@ -23,4 +23,4 @@ Create a data-exploration dashboard showing the following plots of data in `df_f
 
 Stack each plot vertically. Spread the plots out so that one plot does not run into the legend of the plot above it.
 
-Save the dashboard as `data_exploration.html`.
+Save the dashboard as `docs/data_exploration.html` (published via GitHub Pages).

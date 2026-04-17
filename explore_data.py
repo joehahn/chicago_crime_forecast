@@ -2,7 +2,7 @@
 """Profile the Chicago crimes dataset and render an HTML exploration dashboard.
 
 Reads  : data/crimes.csv        (produced by get_data.py)
-Writes : data_exploration.html
+Writes : docs/data_exploration.html  (published via GitHub Pages)
 """
 
 from pathlib import Path
@@ -16,7 +16,7 @@ SCATTER_SAMPLE_SIZE = 10_000
 
 ROOT = Path(__file__).parent
 INPUT_PATH = ROOT / "data" / "crimes.csv"
-OUTPUT_PATH = ROOT / "data_exploration.html"
+OUTPUT_PATH = ROOT / "docs" / "data_exploration.html"
 
 
 # 1. Load & profile.
@@ -161,5 +161,6 @@ fig.update_layout(
     font=dict(size=12),
 )
 
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 fig.write_html(OUTPUT_PATH)
 print(f"\nSaved dashboard to {OUTPUT_PATH}")
