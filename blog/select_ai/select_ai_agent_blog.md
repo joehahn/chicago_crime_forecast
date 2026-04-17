@@ -50,7 +50,7 @@ components.
 
 <figure>
 <img src="media/architecture.png" style="width:5.58462in;height:5.29730in" />
-<figcaption style="font-size:smaller;font-style:italic;"><p>*Figure 1. Cloud architecture of the Select AI Agent
+<figcaption style="font-size:smaller;font-style:italic;"><p><em>Figure 1. Cloud architecture of the Select AI Agent
 solution deployed on OCI. The lower left corner shows the Agent
 Developer using an OML Notebook, which is provided by Autonomous AI
 Database (ADB), to author and deploy the Agent, while the Business User
@@ -59,7 +59,7 @@ Agent is hosted within ADB and orchestrates calls to various Tools that
 in turn call upon structured database tables and unstructured data
 stored as files in Object Store, with the OCI GenAI Service providing
 the LLM that perform NL2SQL as well as the encoder that is utilized by
-the RAG Tool.*</p></figcaption>
+the RAG Tool.</em></p></figcaption>
 </figure>
 
 This architecture’s key components are:
@@ -117,8 +117,8 @@ Figure 2. This demo’s most important tables are:
 
 <figure>
 <img src="media/sh_schema.gif" style="width:5.63077in;height:6.69380in" />
-<figcaption style="font-size:smaller;font-style:italic;"><p>*Figure 2. Relationships among the tables in the Oracle
-Sales History (SH) schema, and their join keys.*</p></figcaption>
+<figcaption style="font-size:smaller;font-style:italic;"><p><em>Figure 2. Relationships among the tables in the Oracle
+Sales History (SH) schema, and their join keys.</em></p></figcaption>
 </figure>
 
 These structured tables are exposed to the agent's NL2SQL tool, which
@@ -165,7 +165,7 @@ documentation and then tailors to the use case.
 
 <figure>
 <img src="media/agent_flow.png" style="width:8.45170in;height:6.03692in" />
-<figcaption style="font-size:smaller;font-style:italic;"><p>*Figure 3. The Select AI Agent hierarchy. At the top is
+<figcaption style="font-size:smaller;font-style:italic;"><p><em>Figure 3. The Select AI Agent hierarchy. At the top is
 the Agent Team containing one or more Agents. Each Agent has a Profile
 (which configures the LLM used by the Agent) and a Task (which provides
 the instruction set that governs tool selection). The Task allows the
@@ -173,7 +173,7 @@ Agent to connect to 4 possible tool types: an NL2SQL Tool (backed by a
 Select AI Profile pointing at Database Tables), one or more RAG Tools
 (each backed by a Select AI RAG Profile pointing at Object Store Files),
 a Websearch Tool (for live internet queries), plus additional Custom
-Tools if desired.*</p></figcaption>
+Tools if desired.</em></p></figcaption>
 </figure>
 
 The Agent Team (which is useful for orchestrating multi-agent workflows)
@@ -281,14 +281,14 @@ configured to point at your Agent with minimal setup.
 
 <figure>
 <img src="media/apex.png" style="width:7.78859in;height:3.72923in" />
-<figcaption style="font-size:smaller;font-style:italic;"><p>*Figure 4. The Ask Oracle APEX app in action. Here the
+<figcaption style="font-size:smaller;font-style:italic;"><p><em>Figure 4. The Ask Oracle APEX app in action. Here the
 user asks about per-capita revenue across geographic regions, which
 triggers the NL2SQL Tool to extract the total revenue version region
 from the relevant database tables. The Agent then calls upon the
 Websearch Tool noted in Figure 3 to collect population numbers from
 online census sources. The Agent then ratios those Tools’ results to
 obtain the desired per-capita revenue for the top 3
-regions.*</p></figcaption>
+regions.</em></p></figcaption>
 </figure>
 
 # Summary
