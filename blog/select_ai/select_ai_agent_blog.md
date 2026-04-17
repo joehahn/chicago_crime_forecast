@@ -192,6 +192,7 @@ The Agent Task is the most critical portion of the Agent’s definition,
 as that tells the Agent when to use any of the various tools it has at
 its fingertips. The PL/SQL code that defines our Agent’s Task is:
 
+```sql
 BEGIN
 
 DBMS_CLOUD_AI_AGENT.create_task(
@@ -237,6 +238,7 @@ before using the WEBSEARCH tool.",
 END;
 
 /
+```
 
 Likewise, additional PL/SQL code snippets (Figure 3) will create the
 Select AI profile that tells the NL2SQL Tool of the relevant database
