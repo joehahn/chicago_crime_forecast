@@ -1,8 +1,9 @@
+Fast/Easy Development of an In-Database Agent via Select AI Agent in Oracle Autonomous AI Database
+
 By Joe Hahn
 
 March 30, 2026
 
-v1
 
 Modern enterprises accumulate data across a wide variety of sources:
 structured relational tables, unstructured documents, and the
