@@ -49,7 +49,7 @@ Infrastructure (OCI), with Figure 1 showing the solution's key
 components.
 
 <figure>
-<img src="media/architecture.png" style="width:4.65385in;height:4.41442in" />
+<img src="media/architecture.png" style="width:5.58462in;height:5.29730in" />
 <figcaption><p>Figure 1. Cloud architecture of the Select AI Agent
 solution deployed on OCI. The lower left corner shows the Agent
 Developer using an OML Notebook, which is provided by Autonomous AI
@@ -116,7 +116,7 @@ Figure 2. This demo’s most important tables are:
   categoric descriptions.
 
 <figure>
-<img src="media/sh_schema.gif" style="width:4.69231in;height:5.57817in" />
+<img src="media/sh_schema.gif" style="width:5.63077in;height:6.69380in" />
 <figcaption><p>Figure 2. Relationships among the tables in the Oracle
 Sales History (SH) schema, and their join keys.</p></figcaption>
 </figure>
@@ -164,7 +164,7 @@ boilerplate PL/SQL code snippet that the Agent developer copies from
 documentation and then tailors to the use case.
 
 <figure>
-<img src="media/agent_flow.png" style="width:7.04308in;height:5.03077in" />
+<img src="media/agent_flow.png" style="width:8.45170in;height:6.03692in" />
 <figcaption><p>Figure 3. The Select AI Agent hierarchy. At the top is
 the Agent Team containing one or more Agents. Each Agent has a Profile
 (which configures the LLM used by the Agent) and a Task (which provides
@@ -280,7 +280,7 @@ and can be imported directly into any ADB-hosted APEX workspace and then
 configured to point at your Agent with minimal setup.
 
 <figure>
-<img src="media/apex.png" style="width:6.49049in;height:3.10769in" />
+<img src="media/apex.png" style="width:7.78859in;height:3.72923in" />
 <figcaption><p>Figure 4. The Ask Oracle APEX app in action. Here the
 user asks about per-capita revenue across geographic regions, which
 triggers the NL2SQL Tool to extract the total revenue version region
