@@ -165,7 +165,7 @@ boilerplate PL/SQL code snippet that the Agent developer copies from
 documentation and then tailors to the use case.
 
 <figure>
-<img src="media/image3.png" style="width:7.04308in;height:5.03077in" />
+<img src="media/agent_flow.png" style="width:7.04308in;height:5.03077in" />
 <figcaption><p>Figure 3. The Select AI Agent hierarchy. At the top is
 the Agent Team containing one or more Agents. Each Agent has a Profile
 (which configures the LLM used by the Agent) and a Task (which provides
