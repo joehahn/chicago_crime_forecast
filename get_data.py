@@ -1,51 +1,65 @@
 #!/usr/bin/env python3
-# get_data.py
-# Download Chicago crimes dataset from the Socrata API and do light filtering & cleanup.
+"""Download the Chicago crimes dataset (past 4 years) and do light filtering & cleanup.
+
+Source: Chicago Data Portal (Socrata API), dataset ID ijzp-q8t2.
+Output: data/crimes.csv
+"""
+
+from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 from sodapy import Socrata
-from datetime import datetime, timedelta
 
-# Download past 4 years of crime data from Chicago Data Portal
-print("Downloading Chicago crime data...")
-cutoff = (datetime.now() - timedelta(days=4*365)).strftime("%Y-%m-%dT%H:%M:%S")
-client = Socrata("data.cityofchicago.org", None)
-results = client.get("ijzp-q8t2", where=f"date > '{cutoff}'", limit=2_000_000)
-df_raw = pd.DataFrame.from_records(results)
-print(f"Records in df_raw: {len(df_raw):,}")
-
-# Inspect text columns and mitigate carriage returns
-print("\nCleaning carriage returns from text columns...")
-text_cols = df_raw.select_dtypes(include="object").columns
-df_clean = df_raw.copy()
-for col in text_cols:
-    df_clean[col] = df_clean[col].astype(str).str.replace(r'\r', ' ', regex=True).str.replace(r'\n', ' ', regex=True)
-print(f"Records in df_clean: {len(df_clean):,}")
-
-# Count by primary_type
-print("\nprimary_type counts:")
-print(df_clean["primary_type"].value_counts().to_string())
-
-# Filter out sensitive crime types
-exclude = [
+DATASET_ID = "ijzp-q8t2"
+DOMAIN = "data.cityofchicago.org"
+YEARS_BACK = 4
+ROW_LIMIT = 2_000_000
+EXCLUDED_PRIMARY_TYPES = [
     "CRIMINAL SEXUAL ASSAULT",
     "OFFENSE INVOLVING CHILDREN",
     "SEX OFFENSE",
     "PROSTITUTION",
 ]
-mask = ~df_clean["primary_type"].isin(exclude)
-df_filtered = df_clean[mask].copy()
+OUTPUT_PATH = Path(__file__).parent / "data" / "crimes.csv"
+
+
+# 1. Download past 4 years of data. Always re-download from source — no local cache.
+cutoff = (datetime.now() - timedelta(days=YEARS_BACK * 365)).strftime("%Y-%m-%dT%H:%M:%S")
+print(f"Downloading {DATASET_ID} from {DOMAIN} (records since {cutoff})...")
+client = Socrata(DOMAIN, None)
+records = client.get(DATASET_ID, where=f"date > '{cutoff}'", limit=ROW_LIMIT)
+df_raw = pd.DataFrame.from_records(records)
+print(f"Records in df_raw:      {len(df_raw):,}")
+
+# 2. Mitigate problematic carriage returns and newlines in text columns.
+df_clean = df_raw.copy()
+for col in df_clean.select_dtypes(include="object").columns:
+    df_clean[col] = (
+        df_clean[col]
+        .astype(str)
+        .str.replace("\r", " ", regex=False)
+        .str.replace("\n", " ", regex=False)
+    )
+print(f"Records in df_clean:    {len(df_clean):,}")
+
+# 3. Show primary_type distribution.
+print("\nprimary_type counts in df_clean:")
+print(df_clean["primary_type"].value_counts().to_string())
+
+# 4. Filter out excluded primary_type values.
+df_filtered = df_clean[~df_clean["primary_type"].isin(EXCLUDED_PRIMARY_TYPES)].copy()
 print(f"\nRecords in df_filtered: {len(df_filtered):,}")
 
-# Display 1 random record
+# 5. Show 1 random record.
 print("\nRandom record from df_filtered:")
 print(df_filtered.sample(1).to_string())
 
-# Min and max date
+# 6. Report date range.
 print(f"\nMin date: {df_filtered['date'].min()}")
 print(f"Max date: {df_filtered['date'].max()}")
 
-# Save to CSV
-output_path = "data/crimes.csv"
-df_filtered.to_csv(output_path, index=False)
-print(f"\nSaved df_filtered to {output_path}")
+# 7. Save to CSV.
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+df_filtered.to_csv(OUTPUT_PATH, index=False)
+print(f"\nSaved df_filtered to {OUTPUT_PATH}")

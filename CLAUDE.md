@@ -9,14 +9,15 @@
 This repository is for the Chicago crime-forcasting project.
 This project's github is at https://github.com/joehahn/chicago_crime_forecast
 Always use python3 instead of python when running scripts.
-Ignore any files in the blog folder
+Ignore any files in the blog folder.
+This project was developed using Claude Code
 
 
 ## 1. download and inspect the data
 
 Begin by prompting claude to download chicago crime data
 
-    @get_data.txt
+    @get_data.md
 
 Then prompt claude to explore and visualize crime data
 
@@ -30,7 +31,7 @@ and inspect the plots that the above published in data_exploration.html
 
 Tell claude to create the prep_data script
 
-    @prep_data.txt
+    @prep_data.md
 
 
 ## 3. train the so-called seasonal ML model
