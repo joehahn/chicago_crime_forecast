@@ -8,7 +8,8 @@
 
 This repository is for the Chicago crime-forcasting project.
 This project's github is at https://github.com/joehahn/chicago_crime_forecast
-Always use python3 instead of python when running scripts
+Always use python3 instead of python when running scripts.
+Ignore any files in the blog folder
 
 
 ## 1. download and inspect the data
@@ -51,8 +52,14 @@ Prompt Claude to train the neural network model
 and inspect nnet_dashboard.html to see model validation reports
 
 
+## Todo:
+
+
 ## 5. train a traditional forecasting ML model
 
     @forecast_model.txt
 
 and inspect forecast_dashboard.html to see model validation reports
+
+## 6. summarize the above via blog post
+

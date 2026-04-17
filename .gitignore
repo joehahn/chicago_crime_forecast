@@ -1,2 +1,3 @@
 data/*.csv
 .claude/
+.DS_Store
