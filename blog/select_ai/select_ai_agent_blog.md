@@ -55,7 +55,7 @@ solution deployed on OCI. The lower left corner shows the Agent
 Developer using an OML Notebook, which is provided by Autonomous AI
 Database (ADB), to author and deploy the Agent, while the Business User
 interacts with that Agent via an Oracle APEX frontend. The Select AI
-Agent is hosted within ADB and orchestrate calls to various Tools that
+Agent is hosted within ADB and orchestrates calls to various Tools that
 in turn call upon structured database tables and unstructured data
 stored as files in Object Store, with the OCI GenAI Service providing
 the LLM that perform NL2SQL as well as the encoder that is utilized by
