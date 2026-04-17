@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 
 SEED = 42
 SCATTER_SAMPLE_SIZE = 10_000
-GAP_PX = 20  # exactly 20 px between every pair of adjacent plots
+GAP_PX = 10  # exactly 10 px between every pair of adjacent plots
 
 ROOT = Path(__file__).parent
 INPUT_PATH = ROOT / "data" / "crimes.csv"
