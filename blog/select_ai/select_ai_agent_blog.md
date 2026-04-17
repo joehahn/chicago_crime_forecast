@@ -281,7 +281,7 @@ and can be imported directly into any ADB-hosted APEX workspace and then
 configured to point at your Agent with minimal setup.
 
 <figure>
-<img src="media/image4.png" style="width:6.49049in;height:3.10769in" />
+<img src="media/apex.png" style="width:6.49049in;height:3.10769in" />
 <figcaption><p>Figure 4. The Ask Oracle APEX app in action. Here the
 user asks about per-capita revenue across geographic regions, which
 triggers the NL2SQL Tool to extract the total revenue version region
