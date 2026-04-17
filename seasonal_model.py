@@ -309,7 +309,7 @@ mar = df_raw[
 ].copy()
 print(f"  THEFT records in March 2026: {len(mar):,}")
 
-# Bin onto a 2-D grid in (longitude, latitude); counts are displayed linearly.
+# Bin onto a 2-D grid in (longitude, latitude); log-scale the per-cell counts.
 lon_bins = np.linspace(-87.85, -87.5, 80)
 lat_bins = np.linspace(41.65, 42.05, 80)
 H, lon_edges, lat_edges = np.histogram2d(mar["longitude"], mar["latitude"], bins=[lon_bins, lat_bins])
@@ -317,19 +317,19 @@ lon_centers = 0.5 * (lon_edges[:-1] + lon_edges[1:])
 lat_centers = 0.5 * (lat_edges[:-1] + lat_edges[1:])
 LON, LAT = np.meshgrid(lon_centers, lat_centers, indexing="ij")
 nonzero = H > 0
-z = H[nonzero]
+log_z = np.log10(H[nonzero])
 
 fig10 = go.Figure(go.Densitymapbox(
-    lat=LAT[nonzero], lon=LON[nonzero], z=z,
+    lat=LAT[nonzero], lon=LON[nonzero], z=log_z,
     radius=10, colorscale="Hot",
-    colorbar=dict(title="count"),
+    colorbar=dict(title="log₁₀(count)"),
     hovertemplate=("longitude: %{lon:.4f}<br>"
                    "latitude: %{lat:.4f}<br>"
-                   "count: %{z}"
+                   "log₁₀(count): %{z:.2f}"
                    "<extra></extra>"),
 ))
 fig10.update_layout(
-    title="Plot 10 — THEFT density heatmap on Chicago streetmap, March 2026 (linear color scale)",
+    title="Plot 10 — THEFT density heatmap on Chicago streetmap, March 2026 (log color scale)",
     height=650, showlegend=False,
     margin=dict(l=0, r=0, t=50, b=0),
     mapbox=dict(
