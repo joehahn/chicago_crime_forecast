@@ -5,9 +5,10 @@ Reads  : data/crimes_monthly.csv, data/crimes.csv
 Writes : models/seasonal_{1,2,3,4}.json
          docs/seasonal_model_dashboard.html  (published via GitHub Pages)
 
-Each plot is rendered as an independent Plotly figure and stacked in a single
-HTML page with exactly 10 px of vertical margin between adjacent plots/tables
-(enforced via CSS, not via Plotly subplot layout).
+Each panel is an independent Plotly figure. Panels are stacked in a single
+HTML page with exactly 10 px of vertical margin between neighbors, enforced
+by CSS — not by Plotly subplot layout. Each panel has its own self-contained
+legend, as required by the prompt.
 """
 
 from pathlib import Path
@@ -35,6 +36,12 @@ TRAIN_COLS = [
 FEATURES = ["year", "month", "ward", "primary_type", "delta_count", "count_0"]
 TARGETS = ["count_1", "count_2", "count_3", "count_4"]
 
+# Legend helpers.
+UPPER_RIGHT = dict(x=0.99, y=0.99, xanchor="right", yanchor="top",
+                   bgcolor="rgba(255,255,255,0.8)", bordercolor="#ccc", borderwidth=1)
+LOWER_RIGHT = dict(x=0.99, y=0.01, xanchor="right", yanchor="bottom",
+                   bgcolor="rgba(255,255,255,0.8)", bordercolor="#ccc", borderwidth=1)
+
 pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 
@@ -60,7 +67,7 @@ print(df_train.sample(5, random_state=SEED).to_string(index=False))
 
 
 # ---------------------------------------------------------------------------
-# 2. Encode primary_type, train the 4 models
+# 2. Encode primary_type, train 4 XGBoost models, save, predict
 # ---------------------------------------------------------------------------
 le = LabelEncoder().fit(df_monthly["primary_type"])
 
@@ -73,26 +80,21 @@ X_train = encoded(df_train)[FEATURES]
 X_test  = encoded(df_test)[FEATURES]
 
 XGB_PARAMS = dict(
-    n_estimators=400,
-    max_depth=6,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    random_state=SEED,
-    n_jobs=-1,
+    n_estimators=400, max_depth=6, learning_rate=0.05,
+    subsample=0.8, colsample_bytree=0.8,
+    random_state=SEED, n_jobs=-1,
 )
 
 models = {}
 print("\nTraining XGBoost models ...")
 for target in TARGETS:
     name = f"seasonal_{target.split('_')[1]}"
-    model = xgb.XGBRegressor(**XGB_PARAMS)
-    model.fit(X_train, df_train[target],
-              eval_set=[(X_test, df_test[target])], verbose=False)
-    models[name] = model
+    m = xgb.XGBRegressor(**XGB_PARAMS)
+    m.fit(X_train, df_train[target],
+          eval_set=[(X_test, df_test[target])], verbose=False)
+    models[name] = m
     print(f"  {name} trained (target={target})")
 
-# Save models.
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 for name, m in models.items():
     p = MODELS_DIR / f"{name}.json"
@@ -100,9 +102,6 @@ for name, m in models.items():
     print(f"  saved {p}")
 
 
-# ---------------------------------------------------------------------------
-# 3. Predict onto df_test, df_validate, df_forecast
-# ---------------------------------------------------------------------------
 def add_predictions(df):
     X = encoded(df)[FEATURES]
     for target in TARGETS:
@@ -116,41 +115,38 @@ df_forecast = add_predictions(df_forecast)
 
 print("\n--- df_validate: primary_type=THEFT, ward=27 ---")
 print(df_validate[(df_validate["primary_type"] == "THEFT") & (df_validate["ward"] == 27)].to_string(index=False))
-
 print("\n--- df_forecast: primary_type=THEFT, ward=27 ---")
 print(df_forecast[(df_forecast["primary_type"] == "THEFT") & (df_forecast["ward"] == 27)].to_string(index=False))
 
 
 # ---------------------------------------------------------------------------
-# 4. Dashboard helpers
+# 3. Panel helpers
 # ---------------------------------------------------------------------------
-def base_layout(title, height, **kwargs):
+def base_layout(title, height, legend=UPPER_RIGHT, **kwargs):
     return dict(
         title=title,
         height=height,
         template="plotly_white",
         margin=dict(l=60, r=40, t=50, b=50),
-        legend=dict(x=0.99, y=0.99, xanchor="right", yanchor="top",
-                    bgcolor="rgba(255,255,255,0.8)", bordercolor="#ccc", borderwidth=1),
+        legend=legend,
         **kwargs,
     )
 
 
 # ---------------------------------------------------------------------------
-# Plot 1 — total-count timeseries, color-coded by TTV
+# Plot 1 — total-count timeseries by TTV split
 # ---------------------------------------------------------------------------
-tot = df_monthly.groupby(["date", "TTV"])["count_0"].sum().reset_index(name="total_count")
+by_ttv = df_monthly.groupby(["date", "TTV"])["count_0"].sum().reset_index(name="total_count")
 train_test_ts = (
     df_monthly[df_monthly["TTV"].isin(["train", "test"])]
     .groupby("date")["count_0"].sum().reset_index(name="total_count")
 )
-
 fig1 = go.Figure(layout=base_layout("Plot 1 — Total crime count vs. date, by TTV split", 400))
 fig1.add_trace(go.Scatter(x=train_test_ts["date"], y=train_test_ts["total_count"],
                           mode="lines+markers", name="train + test",
                           line=dict(color="steelblue")))
 for label, color in [("validate", "orange"), ("forecast", "crimson")]:
-    sub = tot[tot["TTV"] == label]
+    sub = by_ttv[by_ttv["TTV"] == label]
     fig1.add_trace(go.Scatter(x=sub["date"], y=sub["total_count"],
                               mode="lines+markers", name=label,
                               line=dict(color=color)))
@@ -162,57 +158,54 @@ for label, color in [("validate", "orange"), ("forecast", "crimson")]:
 val_rows = []
 for target in TARGETS:
     n = target.split("_")[1]
-    # df_validate has NaN in count_N for the last N months of data; mask them.
     mask = df_validate[target].notna()
     y_true = df_validate.loc[mask, target]
     y_pred = df_validate.loc[mask, f"count_{n}_pred"]
     val_rows.append({
-        "model": f"seasonal_{n}",
+        "model":  f"seasonal_{n}",
         "target": target,
-        "n": int(mask.sum()),
-        "MAE":  f"{mean_absolute_error(y_true, y_pred):.4f}",
-        "RMSE": f"{np.sqrt(mean_squared_error(y_true, y_pred)):.4f}",
-        "R²":   f"{r2_score(y_true, y_pred):.4f}",
+        "n":      int(mask.sum()),
+        "MAE":    f"{mean_absolute_error(y_true, y_pred):.4f}",
+        "RMSE":   f"{np.sqrt(mean_squared_error(y_true, y_pred)):.4f}",
+        "R²":     f"{r2_score(y_true, y_pred):.4f}",
     })
 val_df = pd.DataFrame(val_rows)
-
 table1 = go.Figure(data=[go.Table(
     header=dict(values=list(val_df.columns), fill_color="#e6eef7",
                 align="left", font=dict(size=13)),
     cells=dict(values=[val_df[c] for c in val_df.columns],
                align="left", font=dict(size=12)),
 )])
-table1.update_layout(title="Table 1 — Validation scores (MAE, RMSE, R²) on df_validate",
+table1.update_layout(title="Table 1 — Validation scores on df_validate",
                      height=200, margin=dict(l=60, r=40, t=50, b=10))
 
 
 # ---------------------------------------------------------------------------
-# Table 2 — feature importances, values truncated to 5 chars
+# Table 2 — feature importances, each value truncated to 5 chars
 # ---------------------------------------------------------------------------
 fi_df = pd.DataFrame({"feature": FEATURES})
 for name, m in models.items():
     fi_df[name] = m.feature_importances_
 fi_str = fi_df.astype(str).apply(lambda col: col.str[:5])
-
 table2 = go.Figure(data=[go.Table(
     header=dict(values=list(fi_str.columns), fill_color="#e6eef7",
                 align="left", font=dict(size=13)),
     cells=dict(values=[fi_str[c] for c in fi_str.columns],
                align="left", font=dict(size=12)),
 )])
-table2.update_layout(title="Table 2 — Feature importances (first 5 chars)",
+table2.update_layout(title="Table 2 — Feature importances (first 5 chars of each value)",
                      height=260, margin=dict(l=60, r=40, t=50, b=10))
 
 
 # ---------------------------------------------------------------------------
-# Plots 2–5 — predictions vs. actuals (log-log), middle 80% green / outer 20% red
+# Plots 2–5 — predictions vs. actuals (log-log), lower-right legend
 # ---------------------------------------------------------------------------
 def pred_vs_actual_figure(target_col, pred_col, title):
-    sub = df_validate[[target_col, pred_col, "count_0"]].copy()
+    sub = df_validate[[target_col, pred_col, "count_0"]].dropna(subset=[target_col])
     sub = sub[(sub[target_col] > 0) & (sub[pred_col] > 0)]
     lo, hi = sub["count_0"].quantile([0.10, 0.90])
     middle = (sub["count_0"] >= lo) & (sub["count_0"] <= hi)
-    fig = go.Figure(layout=base_layout(title, 500))
+    fig = go.Figure(layout=base_layout(title, 500, legend=LOWER_RIGHT))
     fig.add_trace(go.Scatter(
         x=sub.loc[middle, target_col], y=sub.loc[middle, pred_col],
         mode="markers", name="middle 80%",
@@ -223,16 +216,12 @@ def pred_vs_actual_figure(target_col, pred_col, title):
         mode="markers", name="outer 20%",
         marker=dict(color="red", opacity=1.0, size=4),
     ))
-    xy = np.array([0.8, 600])
-    fig.add_trace(go.Scatter(x=xy, y=xy, mode="lines",
+    line_xy = np.array([0.8, 600])
+    fig.add_trace(go.Scatter(x=line_xy, y=line_xy, mode="lines",
                              name="prediction=actual",
                              line=dict(color="black", dash="dash", width=1)))
     fig.update_xaxes(type="log", range=[np.log10(0.8), np.log10(600)], title_text="actual")
     fig.update_yaxes(type="log", range=[np.log10(0.2), np.log10(600)], title_text="prediction")
-    fig.update_layout(legend=dict(
-        x=0.99, y=0.01, xanchor="right", yanchor="bottom",
-        bgcolor="rgba(255,255,255,0.8)", bordercolor="#ccc", borderwidth=1,
-    ))
     return fig
 
 fig2 = pred_vs_actual_figure("count_1", "count_1_pred", "Plot 2 — seasonal_1 predictions vs. actuals (log-log)")
@@ -244,6 +233,9 @@ fig5 = pred_vs_actual_figure("count_4", "count_4_pred", "Plot 5 — seasonal_4 p
 # ---------------------------------------------------------------------------
 # Plots 6–8 — per-primary_type timeseries with multi-horizon forecasts
 # ---------------------------------------------------------------------------
+HORIZON_COLORS = {"count_1_pred": "steelblue", "count_2_pred": "darkorange",
+                  "count_3_pred": "seagreen",  "count_4_pred": "crimson"}
+
 def horizon_timeseries_figure(crime_type, title):
     sub = df_validate[df_validate["primary_type"] == crime_type]
     actual = sub.groupby("date")["count_0"].sum().reset_index()
@@ -254,8 +246,6 @@ def horizon_timeseries_figure(crime_type, title):
         line=dict(color="black", width=2),
         error_y=dict(type="data", array=np.sqrt(actual["count_0"]), visible=True),
     ))
-    colors = {"count_1_pred": "steelblue", "count_2_pred": "darkorange",
-              "count_3_pred": "seagreen",  "count_4_pred": "crimson"}
     for n in (1, 2, 3, 4):
         col = f"count_{n}_pred"
         pred = sub.groupby("date")[col].sum().reset_index()
@@ -263,7 +253,7 @@ def horizon_timeseries_figure(crime_type, title):
         fig.add_trace(go.Scatter(
             x=pred["shifted"], y=pred[col],
             mode="lines+markers", name=f"{col} → date + {n} mo",
-            line=dict(color=colors[col], width=1),
+            line=dict(color=HORIZON_COLORS[col], width=1),
         ))
     fig.update_xaxes(title_text="date")
     fig.update_yaxes(title_text="summed count_0")
@@ -275,12 +265,13 @@ fig8 = horizon_timeseries_figure("ARSON",    "Plot 8 — ARSON timeseries with m
 
 
 # ---------------------------------------------------------------------------
-# Plot 9 — per-ward timeseries with forecasts (wards 27, 29, 38), log y
+# Plot 9 — per-ward timeseries with multi-horizon forecasts, log y
 # ---------------------------------------------------------------------------
 fig9 = go.Figure(layout=base_layout(
     "Plot 9 — Per-ward timeseries with multi-horizon forecasts (wards 27, 29, 38)", 480,
 ))
 ward_colors = {27: "red", 29: "blue", 38: "green"}
+dashes = ["dot", "dash", "dashdot", "longdash"]  # one per horizon 1..4
 for ward, color in ward_colors.items():
     sub = df_validate[df_validate["ward"] == ward]
     actual = sub.groupby("date")["count_0"].sum().reset_index()
@@ -297,14 +288,14 @@ for ward, color in ward_colors.items():
         fig9.add_trace(go.Scatter(
             x=pred["shifted"], y=pred[col],
             mode="lines+markers", name=f"ward {ward} {col}",
-            line=dict(color=color, width=1, dash=["dot", "dash", "dashdot", "longdash"][n - 1]),
+            line=dict(color=color, width=1, dash=dashes[n - 1]),
         ))
 fig9.update_xaxes(title_text="date")
 fig9.update_yaxes(type="log", title_text="summed count_0 (log)")
 
 
 # ---------------------------------------------------------------------------
-# Plot 10 — THEFT density heatmap (xy plot with geographic aspect), March 2026
+# Plot 10 — THEFT density heatmap on a Chicago streetmap, March 2026
 # ---------------------------------------------------------------------------
 print(f"\nLoading {RAW_PATH} for Plot 10 heatmap ...")
 df_raw = pd.read_csv(RAW_PATH, usecols=["date", "primary_type", "latitude", "longitude"],
@@ -316,71 +307,54 @@ mar = df_raw[
     & df_raw["latitude"].notna()
     & df_raw["longitude"].notna()
 ].copy()
-mar["neg_longitude"] = -mar["longitude"]
 print(f"  THEFT records in March 2026: {len(mar):,}")
 
-# Bin onto a 2-D grid in (-longitude, latitude) space.
-x_bins = np.linspace(87.5, 87.85, 80)   # -longitude bin edges (ascending)
-y_bins = np.linspace(41.65, 42.05, 80)  # latitude bin edges
-H, x_edges, y_edges = np.histogram2d(mar["neg_longitude"], mar["latitude"], bins=[x_bins, y_bins])
-x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
-y_centers = 0.5 * (y_edges[:-1] + y_edges[1:])
+# Bin onto a 2-D grid in (longitude, latitude); log-scale the per-cell counts.
+lon_bins = np.linspace(-87.85, -87.5, 80)
+lat_bins = np.linspace(41.65, 42.05, 80)
+H, lon_edges, lat_edges = np.histogram2d(mar["longitude"], mar["latitude"], bins=[lon_bins, lat_bins])
+lon_centers = 0.5 * (lon_edges[:-1] + lon_edges[1:])
+lat_centers = 0.5 * (lat_edges[:-1] + lat_edges[1:])
+LON, LAT = np.meshgrid(lon_centers, lat_centers, indexing="ij")
+nonzero = H > 0
+log_z = np.log10(H[nonzero])
 
-# Logarithmic color scaling: empty cells as NaN (transparent), populated cells as log10(count).
-log_z = np.where(H > 0, np.log10(H), np.nan)
-
-fig10 = go.Figure(go.Heatmap(
-    x=x_centers,
-    y=y_centers,
-    z=log_z.T,  # heatmap expects z[y_index, x_index]
-    colorscale="Hot",
+fig10 = go.Figure(go.Densitymapbox(
+    lat=LAT[nonzero], lon=LON[nonzero], z=log_z,
+    radius=10, colorscale="Hot",
     colorbar=dict(title="log₁₀(count)"),
-    hovertemplate=("-longitude: %{x:.4f}<br>"
-                   "latitude: %{y:.4f}<br>"
+    hovertemplate=("longitude: %{lon:.4f}<br>"
+                   "latitude: %{lat:.4f}<br>"
                    "log₁₀(count): %{z:.2f}"
                    "<extra></extra>"),
 ))
 fig10.update_layout(
-    title="Plot 10 — THEFT density heatmap, March 2026 (log color scale)",
-    height=650,
-    margin=dict(l=60, r=40, t=50, b=60),
-    showlegend=False,
-)
-# Reversed x-axis so 87.85 is on the left, 87.5 on the right.
-fig10.update_xaxes(range=[87.85, 87.5], title_text="-longitude")
-fig10.update_yaxes(
-    range=[41.65, 42.05], title_text="latitude",
-    scaleanchor="x", scaleratio=1.34,  # 1/cos(41.85°) ≈ geographic aspect
+    title="Plot 10 — THEFT density heatmap on Chicago streetmap, March 2026 (log color scale)",
+    height=650, showlegend=False,
+    margin=dict(l=0, r=0, t=50, b=0),
+    mapbox=dict(
+        style="open-street-map",
+        center=dict(lat=0.5 * (41.65 + 42.05), lon=0.5 * (-87.85 + -87.5)),
+        zoom=9.4,
+        bounds=dict(west=-87.85, east=-87.5, south=41.65, north=42.05),
+    ),
 )
 
 
 # ---------------------------------------------------------------------------
-# 5. Assemble dashboard HTML
+# 4. Assemble dashboard HTML with 10 px between panels
 # ---------------------------------------------------------------------------
-panels = [
-    ("plot",  fig1),
-    ("table", table1),
-    ("table", table2),
-    ("plot",  fig2),
-    ("plot",  fig3),
-    ("plot",  fig4),
-    ("plot",  fig5),
-    ("plot",  fig6),
-    ("plot",  fig7),
-    ("plot",  fig8),
-    ("plot",  fig9),
-    ("plot",  fig10),
-]
+panels = [fig1, table1, table2, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10]
 
 css = f"""
-  body     {{ font-family: sans-serif; max-width: 1100px; margin: {GAP_PX}px auto; padding: 0 20px; }}
-  h1       {{ margin: 0 0 {GAP_PX}px 0; }}
-  .panel   {{ margin: 0 0 {GAP_PX}px 0; padding: 0; }}
+  body   {{ font-family: sans-serif; max-width: 1100px; margin: {GAP_PX}px auto; padding: 0 20px; }}
+  h1     {{ margin: 0 0 {GAP_PX}px 0; }}
+  .panel {{ margin: 0 0 {GAP_PX}px 0; padding: 0; }}
   .panel:last-child {{ margin-bottom: 0; }}
 """
 
 body_parts = ["<h1>Chicago Crime — Seasonal Model Validation Dashboard</h1>"]
-for i, (_, fig) in enumerate(panels):
+for i, fig in enumerate(panels):
     include_js = "cdn" if i == 0 else False
     body_parts.append('<div class="panel">')
     body_parts.append(fig.to_html(full_html=False, include_plotlyjs=include_js))

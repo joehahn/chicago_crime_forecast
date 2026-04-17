@@ -119,7 +119,7 @@ Color coding:
 Use a logarithmic y-axis. Add a legend in the upper-right corner. Render as connected scatter plots.
 
 ### Plot 10 — THEFT heatmap
-Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in March 2026. Render a 2-D density heatmap of those records' geographic locations with:
+Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in March 2026. Superimpose a heatmap of those THEFTS on top of a streetmap of Chicago, with:
 
 - **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
 - **y-axis:** `latitude`, running from `41.65` to `42.05`.
