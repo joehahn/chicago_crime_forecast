@@ -58,9 +58,9 @@ and inspect [docs/nnet_dashboard.html](https://joehahn.github.io/chicago_crime_f
 
 ## 5. train a traditional forecasting ML model
 
-    @forecast_model.txt
+    @forecast_model.md
 
-and inspect forecast_dashboard.html to see model validation reports
+and inspect [docs/forecast_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/forecast_dashboard.html) to see model validation reports
 
 ## 6. summarize the above via blog post
 
