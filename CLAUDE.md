@@ -53,14 +53,15 @@ Prompt Claude to train the neural network model
 and inspect [docs/nnet_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/nnet_dashboard.html) to see model validation reports
 
 
-## Todo:
-
-
 ## 5. train a traditional forecasting ML model
 
     @forecast_model.md
 
 and inspect [docs/forecast_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/forecast_dashboard.html) to see model validation reports
+
+
+## Todo:
+
 
 ## 6. summarize the above via blog post
 
