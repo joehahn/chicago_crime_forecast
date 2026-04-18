@@ -48,9 +48,9 @@ and inspect [docs/seasonal_model_dashboard.html](https://joehahn.github.io/chica
 
 Prompt Claude to train the neural network model
 
-    @seasonal_model.md
+    @neural_net_model.md
 
-and inspect nnet_dashboard.html to see model validation reports
+and inspect [docs/nnet_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/nnet_dashboard.html) to see model validation reports
 
 
 ## Todo:
