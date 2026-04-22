@@ -34,7 +34,7 @@ Tell claude to create the prep_data script
     @prep_data.md
 
 
-## 3. train a traditional forecasting ML model
+## 3. train an sklearn forecasting ML model
 
     @forecast_model.md
 
