@@ -13,7 +13,6 @@ import pandas as pd
 SEED = 42
 TOP_N_PRIMARY_TYPES = 20
 VALIDATE_FROM = "2025-01-01"
-TRAIN_THRESHOLD = 0.667
 
 ROOT = Path(__file__).parent
 INPUT_PATH = ROOT / "data" / "crimes.csv"
@@ -149,16 +148,14 @@ print(df_target[(df_target["primary_type"] == "THEFT") & (df_target["ward"] == 2
 
 # 9. Assign TTV splits → df_ttv.
 df_ttv = df_target.copy()
-df_ttv["ran_num"] = rng.uniform(0.0, 1.0, size=len(df_ttv))
-df_ttv["TTV"] = np.where(df_ttv["ran_num"] <= TRAIN_THRESHOLD, "train", "test")
-df_ttv.loc[df_ttv["date"] >= VALIDATE_FROM, "TTV"] = "validate"
+df_ttv["TTV"] = np.where(df_ttv["date"] < VALIDATE_FROM, "train", "validate")
 
 sorted_dates = sorted(df_ttv["date"].unique())
 df_ttv.loc[df_ttv["date"].isin(sorted_dates[-2:]), "TTV"] = "forecast"
 df_ttv.loc[df_ttv["date"] == sorted_dates[-1], "TTV"] = "incomplete"
 
 # 10. Drop columns → df_monthly, drop delta_count NaNs.
-df_monthly = df_ttv.drop(columns=["arrest", "domestic", "count_previous", "ran_num"])
+df_monthly = df_ttv.drop(columns=["arrest", "domestic", "count_previous"])
 df_monthly = df_monthly.dropna(subset=["delta_count"]).reset_index(drop=True)
 
 print("\n--- df_monthly: primary_type=THEFT, ward=22 ---")

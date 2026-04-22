@@ -9,18 +9,25 @@ in a single HTML page with exactly 20 px of vertical margin between adjacent
 plots (enforced via CSS, not via Plotly's subplot `vertical_spacing`).
 """
 
+from math import cos, radians
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
 
 SEED = 42
 SCATTER_SAMPLE_SIZE = 10_000
 GAP_PX = 10  # exactly 10 px between every pair of adjacent plots
+STATIC_DPI = 120
 
 ROOT = Path(__file__).parent
 INPUT_PATH = ROOT / "data" / "crimes.csv"
 OUTPUT_PATH = ROOT / "docs" / "data_exploration.html"
+IMG_DIR = ROOT / "docs" / "img"
+IMG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -118,54 +125,60 @@ fig5.update_xaxes(
 )
 fig5.update_yaxes(title_text="count")
 
-# Plot 6 — monthly THEFT by ward, log y, no legend
-colors = [f"hsl({int(i / len(wards) * 360)},70%,50%)" for i in range(len(wards))]
-fig6 = go.Figure(layout=base_layout("Plot 6 — Monthly THEFT count by ward (log y)", 500))
+# Plot 6 — monthly THEFT by ward, log y, no legend → static PNG
+THEFT_PNG = IMG_DIR / "theft_per_ward.png"
+fig6_mpl, ax6 = plt.subplots(figsize=(10, 5))
+cmap6 = plt.get_cmap("hsv")
 for i, ward in enumerate(wards):
     wd = theft_by_ward[theft_by_ward["ward"] == ward]
-    fig6.add_trace(go.Scatter(
-        x=wd["month"], y=wd["count"], mode="lines",
-        line=dict(color=colors[i], width=1),
-    ))
-fig6.update_yaxes(type="log", range=[1, 3.041], title_text="count (log)")
+    ax6.plot(wd["month"], wd["count"],
+             color=cmap6(i / max(len(wards) - 1, 1)), linewidth=1, alpha=0.6)
+ax6.set_yscale("log")
+ax6.set_ylim(10, 1100)
+ax6.set_title("Plot 6 — Monthly THEFT count by ward (log y)")
+ax6.set_xlabel("month")
+ax6.set_ylabel("count (log)")
+ax6.grid(True, which="both", alpha=0.3)
+fig6_mpl.tight_layout()
+fig6_mpl.savefig(THEFT_PNG, dpi=STATIC_DPI)
+plt.close(fig6_mpl)
+print(f"Saved {THEFT_PNG}")
 
-# Plot 7 — latitude vs. -longitude, colored by ward, geographic aspect
-fig7 = go.Figure(
-    data=[go.Scatter(
-        x=scatter_sample["neg_longitude"],
-        y=scatter_sample["latitude"],
-        mode="markers",
-        marker=dict(
-            color=scatter_sample["ward"],
-            colorscale="Turbo",
-            size=3,
-            opacity=0.6,
-            colorbar=dict(title="ward"),
-        ),
-        customdata=scatter_sample[["ward"]].astype(int).values,
-        hovertemplate=(
-            "latitude: %{y:.5f}<br>"
-            "-longitude: %{x:.5f}<br>"
-            "ward: %{customdata[0]}"
-            "<extra></extra>"
-        ),
-    )],
-    layout=base_layout(
-        f"Plot 7 — {SCATTER_SAMPLE_SIZE:,} random locations (latitude vs. -longitude), colored by ward",
-        800,
-    ),
+# Plot 7 — latitude vs. -longitude, colored by ward, geographic aspect → static PNG
+GEO_PNG = IMG_DIR / "geo_scatter.png"
+fig7_mpl, ax7 = plt.subplots(figsize=(9, 10))
+ax7.scatter(
+    scatter_sample["neg_longitude"], scatter_sample["latitude"],
+    c=scatter_sample["ward"].astype(int), cmap="tab20",
+    s=2, alpha=0.6, linewidths=0,
 )
-fig7.update_xaxes(range=[87.85, 87.5], title_text="-longitude")
-fig7.update_yaxes(
-    range=[41.65, 42.05], title_text="latitude",
-    scaleanchor="x", scaleratio=1.34,  # 1/cos(41.85°) ≈ geographic aspect
+ax7.set_xlim(87.85, 87.5)
+ax7.set_ylim(41.65, 42.05)
+ax7.set_aspect(1 / cos(radians(41.85)))
+ax7.set_xlabel("-longitude")
+ax7.set_ylabel("latitude")
+ax7.set_title(
+    f"Plot 7 — {SCATTER_SAMPLE_SIZE:,} random locations "
+    "(latitude vs. -longitude), colored by ward"
 )
+fig7_mpl.tight_layout()
+fig7_mpl.savefig(GEO_PNG, dpi=STATIC_DPI)
+plt.close(fig7_mpl)
+print(f"Saved {GEO_PNG}")
 
 
 # ---------------------------------------------------------------------------
 # 4. Stack figures into one HTML page with exactly GAP_PX between them
 # ---------------------------------------------------------------------------
-figs = [fig1, fig2, fig3, fig4, fig5, fig6, fig7]
+# Each panel is either a plotly Figure (rendered inline) or a string that is
+# already-formed HTML (used for the two static PNG panels).
+panels = [
+    fig1, fig2, fig3, fig4, fig5,
+    f'<img src="img/{THEFT_PNG.name}" alt="Plot 6 — Monthly THEFT count by ward" '
+    'style="width:100%;height:auto;display:block;">',
+    f'<img src="img/{GEO_PNG.name}" alt="Plot 7 — random locations by ward" '
+    'style="width:100%;height:auto;display:block;">',
+]
 
 # CSS controls the between-plot gap. The last plot has zero bottom margin
 # so that no trailing whitespace exceeds GAP_PX anywhere in the document.
@@ -177,10 +190,15 @@ css = f"""
 """
 
 body_parts = ["<h1>Chicago Crime Data — Exploration Dashboard</h1>"]
-for i, fig in enumerate(figs):
-    include_js = "cdn" if i == 0 else False
+plotly_count = 0
+for panel in panels:
     body_parts.append('<div class="plot">')
-    body_parts.append(fig.to_html(full_html=False, include_plotlyjs=include_js))
+    if isinstance(panel, str):
+        body_parts.append(panel)
+    else:
+        include_js = "cdn" if plotly_count == 0 else False
+        body_parts.append(panel.to_html(full_html=False, include_plotlyjs=include_js))
+        plotly_count += 1
     body_parts.append("</div>")
 
 html = (

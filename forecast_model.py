@@ -6,11 +6,10 @@ Writes : models/forecaster.joblib
          docs/forecast_dashboard.html  (published via GitHub Pages)
 
 Approach — one timeseries per (ward, primary_type), count_0 as the target.
-Fit ONCE on all history before 2025-01-01 (TTV ∈ {train, test}). For each
+Fit ONCE on all history before 2025-01-01 (TTV = 'train'). For each
 validate/forecast date t, predict 4 months ahead using the stored model and
 a last_window that contains the observed history up through t (no refit —
-documented in forecast_model.md). That produces count_{1..4}_pred per row,
-directly comparable to the outputs of seasonal_model.py and run_nnet.py.
+documented in forecast_model.md). That produces count_{1..4}_pred per row.
 
 Dashboard is 4 independent Plotly figures stacked with exactly 10 px CSS
 gaps between neighbors; each panel has its own self-contained legend.
@@ -57,12 +56,10 @@ print(f"Loading {MONTHLY_PATH} ...")
 df_monthly = pd.read_csv(MONTHLY_PATH, parse_dates=["date"])
 
 df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    TRAIN_COLS].copy()
-df_test     = df_monthly.loc[df_monthly["TTV"] == "test",     TRAIN_COLS].copy()
 df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", TRAIN_COLS].copy()
 df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", TRAIN_COLS].copy()
 
 print(f"df_train    records: {len(df_train):,}")
-print(f"df_test     records: {len(df_test):,}")
 print(f"df_validate records: {len(df_validate):,}")
 print(f"df_forecast records: {len(df_forecast):,}")
 
@@ -92,7 +89,7 @@ print(f"\nPanel shape: {panel.shape[0]} months × {panel.shape[1]} series")
 # Shared exogenous features — year, month per date.
 exog = pd.DataFrame({"year": panel.index.year, "month": panel.index.month}, index=panel.index)
 
-# Fit window: everything strictly before CUTOFF_DATE (TTV ∈ {train, test}).
+# Fit window: everything strictly before CUTOFF_DATE (TTV = 'train').
 fit_mask = panel.index < CUTOFF_DATE
 panel_fit = panel.loc[fit_mask]
 exog_fit  = exog.loc[fit_mask]
@@ -194,15 +191,8 @@ def base_layout(title, height, **kwargs):
 
 # Plot 1 — TTV timeseries
 by_ttv = df_monthly.groupby(["date", "TTV"])["count_0"].sum().reset_index(name="total_count")
-train_test_ts = (
-    df_monthly[df_monthly["TTV"].isin(["train", "test"])]
-    .groupby("date")["count_0"].sum().reset_index(name="total_count")
-)
 fig1 = go.Figure(layout=base_layout("Plot 1 — Total crime count vs. date, by TTV split", 400))
-fig1.add_trace(go.Scatter(x=train_test_ts["date"], y=train_test_ts["total_count"],
-                          mode="lines+markers", name="train + test",
-                          line=dict(color="steelblue")))
-for label, color in [("validate", "orange"), ("forecast", "crimson")]:
+for label, color in [("train", "steelblue"), ("validate", "orange"), ("forecast", "crimson")]:
     sub = by_ttv[by_ttv["TTV"] == label]
     fig1.add_trace(go.Scatter(x=sub["date"], y=sub["total_count"],
                               mode="lines+markers", name=label,
