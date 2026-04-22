@@ -62,7 +62,26 @@ Use connected scatter plots, color-coded by `TTV`.
 ### Table 1 — validation scores
 Using `df_validate`, compute MAE, RMSE, and R² for each of the four prediction columns (`count_1_pred` vs. `count_1`, `count_2_pred` vs. `count_2`, `count_3_pred` vs. `count_3`, `count_4_pred` vs. `count_4`). Render the results as a table.
 
-### Plot 2 — THEFT timeseries with multi-horizon forecasts
+### Table 2 — feature importances
+Extract feature importances from the trained `forecaster` (via `forecaster.get_feature_importances()`, which returns a DataFrame with a `feature` column and an `importance` column). The features include the six autoregressive lags (`lag_1..lag_6`), the two exogenous features (`year`, `month`), and the series encoding. Convert the DataFrame to strings and truncate every value to its first 5 characters. Render as a table, ordered by descending importance.
+
+### Plot 2 — count_1_pred vs. count_1 scatter
+Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (actuals).
+
+- Logarithmic x-axis from 0.8 to 600.
+- Logarithmic y-axis from 0.2 to 600.
+- Do not distinguish between different `primary_type` or `ward`.
+- Do not add 0.5 to either predictions or actuals.
+- Include only points whose prediction AND actual are `> 0`.
+- Use opaque **green** dots for records whose `count_0` falls in the middlemost 80% of the data, and opaque **red** dots for records in the outermost 20%.
+- Overplot `y = x` as a dashed line labeled `prediction=actual`.
+- Place the legend in the **lower-right corner** of the plot.
+
+### Plot 3 — same as Plot 2 but for `count_2_pred` vs. `count_2`
+### Plot 4 — same as Plot 2 but for `count_3_pred` vs. `count_3`
+### Plot 5 — same as Plot 2 but for `count_4_pred` vs. `count_4`
+
+### Plot 6 — THEFT timeseries with multi-horizon forecasts
 Using `df_validate`, show a timeseries of summed `count_0` for all `primary_type = THEFT` records vs. `date`. Color the `count_0` curve **blue** and put vertical error bars on it extending up/down by `sqrt(count_0)`. Then overplot:
 
 - summed `count_1_pred` vs. `date + 1 month`
@@ -72,7 +91,10 @@ Using `df_validate`, show a timeseries of summed `count_0` for all `primary_type
 
 Add a legend in the upper-right corner of this plot.
 
-### Plot 3 — per-ward timeseries with forecasts (wards 27, 29, 38)
+### Plot 7 — same as Plot 6 but for `primary_type = BURGLARY`
+### Plot 8 — same as Plot 6 but for `primary_type = ARSON`
+
+### Plot 9 — per-ward timeseries with forecasts (wards 27, 29, 38)
 Using `df_validate`, show a timeseries of summed `count_0` across all `primary_type` for wards `27`, `29`, and `38` vs. `date`. Put vertical error bars of `sqrt(count_0)` on each `count_0` curve, then overplot:
 
 - summed `count_1_pred` vs. `date + 1 month`
@@ -87,6 +109,14 @@ Color coding:
 - Ward 38 → green
 
 Use a logarithmic y-axis. Add a legend in the upper-right corner. Render as connected scatter plots.
+
+### Plot 10 — THEFT heatmap
+Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in the most recent complete calendar month in the file. Superimpose a heatmap of those thefts on top of a streetmap of Chicago, with:
+
+- **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
+- **y-axis:** `latitude`, running from `41.65` to `42.05`.
+- Logarithmic color scaling applied to the binned counts.
+- A geographic aspect ratio (so that one degree of latitude and one degree of longitude represent equal distances on the ground at Chicago's latitude, ≈ 41.85°).
 
 ## Dashboard layout
 
