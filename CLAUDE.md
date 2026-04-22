@@ -38,13 +38,18 @@ Tell claude to create the prep_data script
 
     @forecast_model.md
 
+
+## 4. validate the forecasting model
+
+    @validate_model.md
+
 and inspect [docs/forecast_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/forecast_dashboard.html) to see model validation reports
 
 
 ## Todo:
 
 
-## 4. summarize the above via blog post
+## 5. summarize the above via blog post
 
 
 Earlier seasonal-XGBoost and Keras neural-net experiments are archived under `old/`.
