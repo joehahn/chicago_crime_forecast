@@ -3,10 +3,6 @@
 
 Reads  : data/crimes.csv                    (produced by get_data.py)
 Writes : docs/data_exploration.html         (published via GitHub Pages)
-
-Layout: each plot is rendered as an independent Plotly figure, then stacked
-in a single HTML page with exactly 20 px of vertical margin between adjacent
-plots (enforced via CSS, not via Plotly's subplot `vertical_spacing`).
 """
 
 from math import cos, radians
@@ -20,7 +16,7 @@ import plotly.graph_objects as go
 
 SEED = 42
 SCATTER_SAMPLE_SIZE = 10_000
-GAP_PX = 10  # exactly 10 px between every pair of adjacent plots
+GAP_PX = 10
 STATIC_DPI = 120
 
 ROOT = Path(__file__).parent
@@ -72,7 +68,7 @@ scatter_sample["neg_longitude"] = -scatter_sample["longitude"]
 
 
 # ---------------------------------------------------------------------------
-# 3. Build 7 independent figures
+# 3. Build figures
 # ---------------------------------------------------------------------------
 def base_layout(title, height, **kwargs):
     return dict(
@@ -85,10 +81,10 @@ def base_layout(title, height, **kwargs):
     )
 
 
-# Plot 1 — daily
+# Plot 1 — daily. Use Scattergl since daily series has > 1,000 points.
 fig1 = go.Figure(
-    data=[go.Scatter(x=daily["date"], y=daily["count"], mode="lines",
-                     line=dict(color="steelblue", width=1))],
+    data=[go.Scattergl(x=daily["date"], y=daily["count"], mode="lines",
+                       line=dict(color="steelblue", width=1))],
     layout=base_layout("Plot 1 — Daily crime count", 400),
 )
 
@@ -170,8 +166,6 @@ print(f"Saved {GEO_PNG}")
 # ---------------------------------------------------------------------------
 # 4. Stack figures into one HTML page with exactly GAP_PX between them
 # ---------------------------------------------------------------------------
-# Each panel is either a plotly Figure (rendered inline) or a string that is
-# already-formed HTML (used for the two static PNG panels).
 panels = [
     fig1, fig2, fig3, fig4, fig5,
     f'<img src="img/{THEFT_PNG.name}" alt="Plot 6 — Monthly THEFT count by ward" '
@@ -180,8 +174,6 @@ panels = [
     'style="width:100%;height:auto;display:block;">',
 ]
 
-# CSS controls the between-plot gap. The last plot has zero bottom margin
-# so that no trailing whitespace exceeds GAP_PX anywhere in the document.
 css = f"""
   body {{ font-family: sans-serif; max-width: 1040px; margin: {GAP_PX}px auto; padding: 0 20px; }}
   h1    {{ margin: 0 0 {GAP_PX}px 0; }}
