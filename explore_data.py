@@ -146,7 +146,7 @@ fig7_mpl, ax7 = plt.subplots(figsize=(9, 10))
 ax7.scatter(
     scatter_sample["neg_longitude"], scatter_sample["latitude"],
     c=scatter_sample["ward"].astype(int), cmap="tab20",
-    s=2, alpha=0.6, linewidths=0,
+    s=6, alpha=0.95, linewidths=0,
 )
 ax7.set_xlim(87.85, 87.5)
 ax7.set_ylim(41.65, 42.05)
