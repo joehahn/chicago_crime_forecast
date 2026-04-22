@@ -1,6 +1,6 @@
 # Chicago Crime Forecast
 
-Forecasting monthly Chicago crime counts by type and district using an skforecast recursive multi-series forecaster (XGBoost regressor under the hood), with the City of Chicago's public crime dataset.
+Forecasting monthly Chicago crime counts by type and ward using an skforecast recursive multi-series forecaster (XGBoost regressor under the hood), with the City of Chicago's public crime dataset.
 
 **Author:** Joe Hahn (jmh.datasciences@gmail.com)
 
