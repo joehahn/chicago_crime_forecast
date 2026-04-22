@@ -71,18 +71,16 @@ Set `delta_count = count_0 - count_previous`. Do not drop any records due to mis
 
 Print all records in `df_target` having `primary_type = THEFT` and `ward = 27`.
 
-Append a column `ran_num` containing random floats uniformly distributed on `[0, 1)`; call the result `df_ttv`. Create a new column `TTV` such that:
+Create a new column `TTV` on `df_target` (call the result `df_ttv`) with these rules, applied in order:
 
-- rows with `ran_num <= 0.667` → `TTV = 'train'`
-- rows with `ran_num  > 0.667` → `TTV = 'test'`
-
-Then set `TTV = 'validate'` for all rows with `date >= '2025-01-01'`.
+- rows with `date < '2025-01-01'` → `TTV = 'train'`
+- rows with `date >= '2025-01-01'` → `TTV = 'validate'`
 
 Set `last_few_dates` to the 2 greatest dates in `df_ttv`, and set `TTV = 'forecast'` for records whose `date` is in `last_few_dates`.
 
 Then set `last_few_dates` to the greatest date in `df_ttv`, and set `TTV = 'incomplete'` for records whose `date` is in `last_few_dates`.
 
-Drop the following columns from `df_ttv`: `arrest`, `domestic`, `count_previous`, `ran_num`. Name the result `df_monthly`.
+Drop the following columns from `df_ttv`: `arrest`, `domestic`, `count_previous`. Name the result `df_monthly`.
 
 Drop from `df_monthly` all records having `delta_count = NaN`.
 

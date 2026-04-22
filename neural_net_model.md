@@ -22,11 +22,10 @@ Set `df_train` to all records in `df_monthly` having `TTV = 'train'`, keeping on
 
 Similarly:
 
-- `df_test` — records with `TTV = 'test'`, same columns.
 - `df_validate` — records with `TTV = 'validate'`, same columns.
 - `df_forecast` — records with `TTV = 'forecast'`, same columns.
 
-Report how many records are in `df_train`, `df_test`, `df_validate`, and `df_forecast`.
+Report how many records are in `df_train`, `df_validate`, and `df_forecast`.
 
 Show 5 random records from `df_train`.
 
@@ -37,13 +36,13 @@ Train a simple Keras/TensorFlow multilayer perceptron (MLP) with **one hidden la
 - **Inputs (features):** `year, month, ward, primary_type, delta_count, count_0` from `df_train`.
 - **Outputs (targets):** `count_1, count_2, count_3, count_4` — a single multi-output regression.
 - **Hidden layer size:** choose whatever is most appropriate for this number of inputs and outputs; use your best judgment.
-- **Test set:** use `df_test` as the evaluation set during training.
+- **Validation set:** use `df_validate` as the evaluation set during training.
 - Name the trained model `nnet`.
 - Save `nnet` under `models/`.
 
 ## Prediction
 
-For each of `df_test`, `df_validate`, and `df_forecast`:
+For each of `df_validate` and `df_forecast`:
 
 - Use `nnet` to predict, and append the predictions as new columns `count_1_pred`, `count_2_pred`, `count_3_pred`, `count_4_pred`.
 - Do not write any predictions to CSV files.
@@ -57,7 +56,7 @@ Create an HTML dashboard of model-validation tables and plots, in this order:
 ### Plot 1 — total-count timeseries, color-coded by TTV
 Start with `df_monthly`, group by `date, TTV`, and compute `sum(count_0)` as `total_count`. Plot:
 
-- the summed train + test timeseries vs. `date`,
+- the `train` timeseries vs. `date`,
 - the `validate` timeseries vs. `date`,
 - the `forecast` timeseries vs. `date`.
 
@@ -91,6 +90,36 @@ Color coding:
 - Ward 38 → green
 
 Use a logarithmic y-axis. Add a legend in the upper-right corner. Render as connected scatter plots.
+
+### Table 2 — feature importances
+Compute permutation feature importances for `nnet` on `df_validate` using `sklearn.inspection.permutation_importance`, separately for each output target (`count_1`, `count_2`, `count_3`, `count_4`). Put the results into a DataFrame with one row per feature and one column per target. Convert the DataFrame to strings and then truncate every value to its first 5 characters. Render as a table.
+
+### Plot 4 — nnet predictions vs. actuals, target 1
+Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (actuals).
+
+- Logarithmic x-axis from 0.8 to 600.
+- Logarithmic y-axis from 0.2 to 600.
+- Do not distinguish between different `primary_type` or `ward`.
+- Do not add 0.5 to either predictions or actuals.
+- Include only points whose prediction AND actual are `> 0`.
+- Use opaque **green** dots for records whose `count_0` falls in the middlemost 80% of the data, and opaque **red** dots for records in the outermost 20%.
+- Overplot `y = x` as a dashed line labeled `prediction=actual`.
+- Place the legend in the **lower-right corner** of the plot.
+
+### Plot 5 — same as Plot 4 but for target 2 (`count_2_pred` vs. `count_2`)
+### Plot 6 — same as Plot 4 but for target 3 (`count_3_pred` vs. `count_3`)
+### Plot 7 — same as Plot 4 but for target 4 (`count_4_pred` vs. `count_4`)
+
+### Plot 8 — same as Plot 2 but for `primary_type = BURGLARY`
+### Plot 9 — same as Plot 2 but for `primary_type = ARSON`
+
+### Plot 10 — THEFT heatmap
+Read `data/crimes.csv` and select all records with `primary_type = THEFT` that occurred in March 2026. Superimpose a heatmap of those THEFTS on top of a streetmap of Chicago, with:
+
+- **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
+- **y-axis:** `latitude`, running from `41.65` to `42.05`.
+- Logarithmic color scaling applied to the binned counts.
+- A geographic aspect ratio (so that one degree of latitude and one degree of longitude represent equal distances on the ground at Chicago's latitude, ≈ 41.85°).
 
 ## Dashboard layout
 
