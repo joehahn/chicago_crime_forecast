@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # get_data.py
-# Download Chicago crimes dataset from the Socrata API and do light filtering & cleanup.
+# Download Chicago crimes dataset from the Socrata API and perform light filtering & cleanup.
 
 import pandas as pd
 from sodapy import Socrata
 from datetime import datetime, timedelta
 
-# Download past 4 years of crime data from Chicago Data Portal
+# Fetch the past 4 years of crime records from the Chicago Data Portal (dataset ijzp-q8t2)
 print("Downloading Chicago crime data...")
 cutoff = (datetime.now() - timedelta(days=4 * 365)).strftime("%Y-%m-%dT%H:%M:%S")
 client = Socrata("data.cityofchicago.org", None)
 results = client.get("ijzp-q8t2", where=f"date > '{cutoff}'", limit=2_000_000)
 df_raw = pd.DataFrame.from_records(results)
-print(f"Records in df_raw: {len(df_raw):,}")
+print(f"df_raw shape: {len(df_raw):,} records x {df_raw.shape[1]} columns")
 
-# Inspect text columns and mitigate carriage returns
+# Replace carriage returns / newlines in every text (object) column with spaces
 print("\nCleaning carriage returns from text columns...")
 text_cols = df_raw.select_dtypes(include="object").columns
 df_clean = df_raw.copy()
@@ -27,11 +27,11 @@ for col in text_cols:
     )
 print(f"Records in df_clean: {len(df_clean):,}")
 
-# Count by primary_type
+# Show count of each primary_type value
 print("\nprimary_type counts:")
 print(df_clean["primary_type"].value_counts().to_string())
 
-# Filter out sensitive crime types
+# Drop records whose primary_type is one of these sensitive categories
 exclude = [
     "CRIMINAL SEXUAL ASSAULT",
     "OFFENSE INVOLVING CHILDREN",
@@ -41,15 +41,15 @@ exclude = [
 df_filtered = df_clean[~df_clean["primary_type"].isin(exclude)].copy()
 print(f"\nRecords in df_filtered: {len(df_filtered):,}")
 
-# Display 1 random record
+# Inspect one random record from df_filtered
 print("\nRandom record from df_filtered:")
 print(df_filtered.sample(1).to_string())
 
-# Min and max date
+# Report date range
 print(f"\nMin date: {df_filtered['date'].min()}")
 print(f"Max date: {df_filtered['date'].max()}")
 
-# Save to CSV
+# Save cleaned & filtered dataset to CSV
 output_path = "data/crimes.csv"
 df_filtered.to_csv(output_path, index=False)
 print(f"\nSaved df_filtered to {output_path}")

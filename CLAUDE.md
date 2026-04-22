@@ -7,11 +7,20 @@
 ## Project
 
 This repository is for the Chicago crime-forcasting project.
+This project was developed using Claude Code.
 This project's github is at https://github.com/joehahn/chicago_crime_forecast
-Always use python3 instead of python when running scripts.
-Ignore any files in the blog folder.
-This project was developed using Claude Code
 
+## Ground rules
+
+When executing any prompt files, execute completely from scratch and starting fresh:
+
+- Do not use any cached results, temporary files, or previously computed outputs.
+- Do not pull any files using git.
+- Do not use any files previously stored in `/tmp`.
+- Ignore any files stored in the `blog` and `old` folders.
+- Clear any cache files first, then execute everything fresh.
+- When a promp script says to display something, display it inline, no not skip
+- Always write simple code that is well commented and understood at a glance
 
 ## 1. download and inspect the data
 
