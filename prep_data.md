@@ -1,8 +1,8 @@
 # prep_data — prompts
 
-**Author:** Joe Hahn
-**Email:** jmh.datasciences@gmail.com  
-**Date:** 2026-April-8
+**Author:** Joe Hahn <br>
+**Email:** jmh.datasciences@gmail.com  <br>
+**Date:** 2026-April-8 <br>
 **branch** main
 
 These prompts generate `prep_data.py`, which prepares the Chicago crime data for training ML models 

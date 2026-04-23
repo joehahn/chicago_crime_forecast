@@ -1,8 +1,8 @@
 # explore_data — prompts
 
-**Author:** Joe Hahn
-**Email:** jmh.datasciences@gmail.com  
-**Date:** 2026-April-8
+**Author:** Joe Hahn <br>
+**Email:** jmh.datasciences@gmail.com  <br>
+**Date:** 2026-April-8 <br>
 **branch** main
 
 These prompts generate `explore_data.py`, which reads the Chicago crimes dataset, profiles and cleans the data, 
