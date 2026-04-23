@@ -16,9 +16,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # ---------- Load data ----------
 df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
 
-# Merge the test bucket into train (mirrors forecast_model.py)
-df_monthly.loc[df_monthly["TTV"] == "test", "TTV"] = "train"
-
 KEEP = [
     "date", "year", "month", "ward", "primary_type",
     "delta_count", "count_0", "count_1", "count_2", "count_3", "count_4",
