@@ -80,7 +80,7 @@ Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (ac
 - Do not distinguish between different `primary_type` or `ward`.
 - Do not add 0.5 to either predictions or actuals.
 - Include only points whose prediction AND actual are `> 0`.
-- Use opaque **blue** dots
+- Use **blue** dots with alpha=0.7
 - Overplot `y = x` as a dashed line labeled `prediction=actual`.
 - Place the legend in the **lower-right corner** of the plot.
 

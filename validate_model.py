@@ -199,7 +199,7 @@ def scatter_pred_vs_actual(k):
     fig.add_trace(go.Scattergl(
         x=df[f"count_{k}"], y=df[f"count_{k}_pred"],
         mode="markers", name="validate",
-        marker=dict(color="blue", opacity=1.0, size=5),
+        marker=dict(color="blue", opacity=0.7, size=5),
     ))
     xs = np.array([0.8, 600])
     fig.add_trace(go.Scatter(
