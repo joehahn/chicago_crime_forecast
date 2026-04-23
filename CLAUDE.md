@@ -52,7 +52,9 @@ Tell claude to create the prep_data script
 
     @validate_model.md
 
-and inspect [docs/forecast_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/forecast_dashboard.html) to see model validation reports
+and inspect [docs/forecast_dashboard.html](https://joehahn.github.io/chicago_crime_forecast/forecast_dashboard.html) to see model validation reports.
+
+This step also generates `forecast_validate.ipynb`, a Jupyter notebook that replicates `forecast_model.py` + `validate_model.py` end-to-end — retraining the skforecast model, running the rolling-origin backtest, and rebuilding the dashboard. Open it with `jupyter lab` to step through the full forecast+validate pipeline interactively.
 
 
 ## Todo:
