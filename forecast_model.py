@@ -17,9 +17,6 @@ KEEP = [
 # Load the prepared monthly panel produced by prep_data.py
 df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
 
-# Merge the test bucket into train — the forecaster uses train for fitting and validate for out-of-time eval
-df_monthly.loc[df_monthly["TTV"] == "test", "TTV"] = "train"
-
 # Split into the three working sets by TTV flag, keeping only the modelling columns
 df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    KEEP].reset_index(drop=True)
 df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", KEEP].reset_index(drop=True)

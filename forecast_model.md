@@ -13,9 +13,8 @@ and save the trained forecaster.
 
 Load `data/crimes_monthly.csv` into `df_monthly`.
 
-For all records in `df_monthly` that have `TTV = 'test'`, set `TTV = 'train'`.
-
-Set `df_train` to all records in `df_monthly` having `TTV = 'train'`, keeping only these columns: `date, year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4`.
+Set `df_train` to all records in `df_monthly` having `TTV = 'train'`, 
+keeping only these columns: `date, year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4`.
 
 Similarly:
 
