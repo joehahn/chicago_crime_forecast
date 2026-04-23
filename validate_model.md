@@ -70,7 +70,9 @@ Using `df_validate`, compute MAE, RMSE, and R² for each of the four prediction 
 `count_2_pred` vs. `count_2`, `count_3_pred` vs. `count_3`, `count_4_pred` vs. `count_4`). Render the results as a table.
 
 ### Table 2 — feature importances
-Extract feature importances from the trained `forecaster` (via `forecaster.get_feature_importances()`, which returns a DataFrame with a `feature` column and an `importance` column). The features include the six autoregressive lags (`lag_1..lag_6`), the two exogenous features (`year`, `month`), and the series encoding. Convert the DataFrame to strings and truncate every value to its first 5 characters. Render as a table, ordered by descending importance.
+Extract feature importances from the trained `forecaster` (via `forecaster.get_feature_importances()`, which returns a DataFrame with a `feature` column and an `importance` column). The features include the six autoregressive lags (`lag_1..lag_6`), the two exogenous features (`year`, `month`), and the series encoding. Convert the DataFrame to strings and 
+truncate every value in the `importance` column to its first 5 characters. 
+Render as a table, ordered by descending importance.
 
 ### Plot 2 — count_1_pred vs. count_1 scatterplot
 Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (actuals).

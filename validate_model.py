@@ -180,14 +180,15 @@ tbl1.update_layout(title="Table 1 — validation scores",
                    height=240, margin=dict(l=20, r=20, t=50, b=10))
 
 
-# Table 2 — feature importances (truncated to first 5 chars, descending)
+# Table 2 — feature importances (importance column truncated to first 5 chars, descending)
 fi = forecaster.get_feature_importances().sort_values("importance", ascending=False).reset_index(drop=True)
-fi_trunc = fi.astype(str).apply(lambda s: s.str[:5])
+fi_disp = fi.astype(str).copy()
+fi_disp["importance"] = fi_disp["importance"].str[:5]
 tbl2 = go.Figure(go.Table(
-    header=dict(values=list(fi_trunc.columns), fill_color="#eaeaea", align="left"),
-    cells=dict(values=[fi_trunc[c] for c in fi_trunc.columns], align="left"),
+    header=dict(values=list(fi_disp.columns), fill_color="#eaeaea", align="left"),
+    cells=dict(values=[fi_disp[c] for c in fi_disp.columns], align="left"),
 ))
-tbl2.update_layout(title="Table 2 — feature importances (values truncated to 5 chars)",
+tbl2.update_layout(title="Table 2 — feature importances (importance truncated to 5 chars)",
                    height=320, margin=dict(l=20, r=20, t=50, b=10))
 
 
