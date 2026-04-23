@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # validate_model.py
-# Load the trained skforecast model, run validation on held-out data, and render an HTML dashboard.
+# Load the trained skforecast model, run multi-horizon rolling predictions on the
+# validate/forecast splits, and render an HTML dashboard of validation tables and plots.
 
 import os
 from math import cos, radians
@@ -11,7 +12,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Load the prepared monthly panel produced by prep_data.py
+
+# ---------- Load data ----------
 df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
 
 # Merge the test bucket into train (mirrors forecast_model.py)
@@ -21,11 +23,7 @@ KEEP = [
     "date", "year", "month", "ward", "primary_type",
     "delta_count", "count_0", "count_1", "count_2", "count_3", "count_4",
 ]
-
-# Train split with just the 11 modelling columns
-df_train = df_monthly.loc[df_monthly["TTV"] == "train", KEEP].reset_index(drop=True)
-
-# Validate & forecast splits with the same 11 columns
+df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    KEEP].reset_index(drop=True)
 df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", KEEP].reset_index(drop=True)
 df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", KEEP].reset_index(drop=True)
 
@@ -33,7 +31,8 @@ print(f"df_train    : {len(df_train):,} records")
 print(f"df_validate : {len(df_validate):,} records")
 print(f"df_forecast : {len(df_forecast):,} records")
 
-# Load the trained multi-series recursive forecaster produced by forecast_model.py
+
+# ---------- Load forecaster ----------
 forecaster = joblib.load("models/forecaster.joblib")
 print(f"\nLoaded forecaster: {type(forecaster).__name__}")
 print(f"  series seen during fit: {len(forecaster.series_names_in_)}")
@@ -52,8 +51,6 @@ all_data["series_id"] = all_data["ward"].astype(str) + "_" + all_data["primary_t
 series_full = all_data.pivot(index="date", columns="series_id", values="count_0")
 series_full.index.freq = "MS"
 
-# Calendar-based exog extending 4 months past the last observed date so we always have
-# future year/month available when predicting from the final origin
 exog_dates = pd.date_range(
     series_full.index.min(),
     series_full.index.max() + pd.offsets.MonthBegin(4),
@@ -71,16 +68,12 @@ print(f"\nPredicting 4 horizons at {len(origin_dates)} origins "
 
 all_preds = []
 for t in origin_dates:
-    # last_window: 6 most recent observations ending at t, as a wide DataFrame (series per column)
     last_window = series_full.loc[:t].tail(6).astype(float)
-
     future_start = t + pd.offsets.MonthBegin(1)
     future_end = t + pd.offsets.MonthBegin(4)
     future_exog = full_exog.loc[future_start:future_end]
-
     preds = forecaster.predict(steps=4, last_window=last_window, exog=future_exog)
-    preds = preds.reset_index().rename(columns={"index": "pred_date", preds.index.name or "index": "pred_date"})
-    # The reset_index gives the prior datetime index a default name — coerce to 'pred_date'
+    preds = preds.reset_index()
     preds.columns = ["pred_date" if c in (None, "index") else c for c in preds.columns]
     preds["origin_date"] = t
     preds["horizon"] = (
@@ -91,7 +84,6 @@ for t in origin_dates:
 pred_long = pd.concat(all_preds, ignore_index=True)
 print(f"Collected {len(pred_long):,} prediction rows (long format)")
 
-# Pivot long -> wide: one row per (origin_date, series_id), columns count_1_pred..count_4_pred
 pred_wide = pred_long.pivot_table(
     index=["origin_date", "level"],
     columns="horizon",
@@ -108,8 +100,6 @@ pred_wide = pred_wide.rename(
         4: "count_4_pred",
     }
 )
-
-# Decompose series_id back into ward + primary_type for merging
 split = pred_wide["series_id"].str.split("_", n=1, expand=True)
 pred_wide["ward"] = split[0].astype(int)
 pred_wide["primary_type"] = split[1]
@@ -117,16 +107,13 @@ pred_cols = ["date", "ward", "primary_type",
              "count_1_pred", "count_2_pred", "count_3_pred", "count_4_pred"]
 pred_wide = pred_wide[pred_cols]
 
-# Attach predictions onto df_validate and df_forecast
 df_validate = df_validate.merge(pred_wide, on=["date", "ward", "primary_type"], how="left")
 df_forecast = df_forecast.merge(pred_wide, on=["date", "ward", "primary_type"], how="left")
 print(f"\ndf_validate shape after merge: {df_validate.shape}")
 print(f"df_forecast shape after merge: {df_forecast.shape}")
-print(f"NaN pred counts in df_validate: "
-      f"{df_validate[['count_1_pred','count_2_pred','count_3_pred','count_4_pred']].isna().sum().to_dict()}")
 
 
-# Required sanity prints from the prompt
+# ---------- Required sanity prints ----------
 print("\nAll records in df_validate having primary_type=THEFT, ward=27:")
 sub_v = df_validate[(df_validate["primary_type"] == "THEFT") & (df_validate["ward"] == 27)]
 with pd.option_context("display.max_rows", None, "display.max_columns", None,
@@ -154,7 +141,7 @@ def scores_row(actual, pred):
     }
 
 
-# Plot 1 — total count by TTV
+# Plot 1 — total monthly count by TTV
 agg = df_monthly.groupby(["date", "TTV"], as_index=False)["count_0"].sum().rename(
     columns={"count_0": "total_count"}
 )
@@ -214,7 +201,6 @@ def scatter_pred_vs_actual(k):
         mode="markers", name="validate",
         marker=dict(color="blue", opacity=1.0, size=5),
     ))
-    # y = x dashed reference line
     xs = np.array([0.8, 600])
     fig.add_trace(go.Scatter(
         x=xs, y=xs, mode="lines", name="prediction=actual",
@@ -235,7 +221,7 @@ fig2, fig3, fig4, fig5 = (scatter_pred_vs_actual(k) for k in (1, 2, 3, 4))
 
 
 # Plots 6..8 — per-primary_type totals with multi-horizon forecasts
-def per_type_timeseries(primary_type, plot_idx, use_log_y=False):
+def per_type_timeseries(primary_type, plot_idx):
     sub = df_validate[df_validate["primary_type"] == primary_type].copy()
     g = sub.groupby("date", as_index=False).agg(
         count_0=("count_0", "sum"),
@@ -268,8 +254,6 @@ def per_type_timeseries(primary_type, plot_idx, use_log_y=False):
         legend=dict(x=0.98, y=0.98, xanchor="right", yanchor="top",
                     bgcolor="rgba(255,255,255,0.7)"),
     )
-    if use_log_y:
-        fig.update_yaxes(type="log")
     return fig
 
 
@@ -290,14 +274,12 @@ for ward, wcolor in ward_colors.items():
         count_3_pred=("count_3_pred", "sum"),
         count_4_pred=("count_4_pred", "sum"),
     ).sort_values("date")
-    # Actual count_0 with sqrt(count_0) error bars — solid line/markers
     fig9.add_trace(go.Scatter(
         x=g["date"], y=g["count_0"], mode="lines+markers",
         name=f"ward {ward} count_0",
         line=dict(color=wcolor), marker=dict(color=wcolor, size=7),
         error_y=dict(type="data", array=np.sqrt(g["count_0"]), visible=True, color=wcolor),
     ))
-    # Predictions overplotted, same ward color but dashed so they're distinguishable
     for k in (1, 2, 3, 4):
         col = f"count_{k}_pred"
         fig9.add_trace(go.Scatter(
@@ -329,8 +311,8 @@ last_complete = latest_period - 1
 theft_recent = theft_all[theft_all["date"].dt.to_period("M") == last_complete]
 print(f"Plot 10: THEFT in {last_complete} ({len(theft_recent):,} records)")
 
-# Pre-bin onto a regular lat/lon grid, then place a weighted point at each bin centre.
-# Weight = log1p(count) so the mapbox density renders a log-scaled heat layer.
+# Pre-bin on a regular lat/lon grid; pass each non-empty bin centre to Densitymapbox
+# with the raw bin count (linear color scale per the current spec)
 nx, ny = 90, 90
 lon_edges = np.linspace(-87.85, -87.5, nx + 1)
 lat_edges = np.linspace(41.65, 42.05, ny + 1)
@@ -339,7 +321,7 @@ H, _, _ = np.histogram2d(theft_recent["latitude"], theft_recent["longitude"],
 lat_ctr = 0.5 * (lat_edges[:-1] + lat_edges[1:])
 lon_ctr = 0.5 * (lon_edges[:-1] + lon_edges[1:])
 ii, jj = np.nonzero(H)
-z = H[ii, jj]  # raw bin counts (linear color scale)
+z = H[ii, jj]
 
 fig10 = go.Figure(go.Densitymapbox(
     lat=lat_ctr[ii], lon=lon_ctr[jj], z=z,
@@ -356,7 +338,7 @@ fig10.update_layout(
 )
 
 
-# Assemble dashboard with exactly 10 px between adjacent plots/tables
+# ---------- Assemble dashboard: exactly 10 px between adjacent blocks ----------
 css = """
 body { margin: 0; padding: 0; font-family: sans-serif; }
 .block { margin: 0; padding: 0; }
@@ -368,8 +350,6 @@ html_parts = [
     "<title>Chicago crime — forecast dashboard</title>",
     f"<style>{css}</style></head><body>",
 ]
-
-# First plotly figure gets plotly.js from CDN; the rest reuse that runtime
 html_parts.append(
     f"<div class='block'>{fig1.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
 )
