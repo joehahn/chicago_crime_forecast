@@ -1,8 +1,8 @@
 # get_data — prompts
 
-**Author:** Joe Hahn
-**Email:** jmh.datasciences@gmail.com  
-**Date:** 2026-April-8
+**Author:** Joe Hahn <br>
+**Email:** jmh.datasciences@gmail.com <br>
+**Date:** 2026-April-8 <br>
 **branch** main
 
 These prompts generate `get_data.py`, which downloads the Chicago crimes dataset 

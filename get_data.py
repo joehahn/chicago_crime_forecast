@@ -1,55 +1,128 @@
-#!/usr/bin/env python3
-# get_data.py
-# Download Chicago crimes dataset from the Socrata API and perform light filtering & cleanup.
+"""
+get_data.py
 
-import pandas as pd
-from sodapy import Socrata
+Downloads the Chicago crimes dataset from the Chicago Data Portal (Socrata API)
+and performs light filtering to make it business-friendly. Saves the result
+to data/crimes.csv.
+
+Source: https://www.chicago.gov/city/en/dataset/crime.html
+Socrata dataset ID: ijzp-q8t2
+"""
+
+import os
 from datetime import datetime, timedelta
 
-# Fetch the past 4 years of crime records from the Chicago Data Portal (dataset ijzp-q8t2)
-print("Downloading Chicago crime data...")
-cutoff = (datetime.now() - timedelta(days=4 * 365)).strftime("%Y-%m-%dT%H:%M:%S")
-client = Socrata("data.cityofchicago.org", None)
-results = client.get("ijzp-q8t2", where=f"date > '{cutoff}'", limit=2_000_000)
-df_raw = pd.DataFrame.from_records(results)
-print(f"df_raw shape: {len(df_raw):,} records x {df_raw.shape[1]} columns")
+import pandas as pd
+import requests
 
-# Replace carriage returns / newlines in every text (object) column with spaces
-print("\nCleaning carriage returns from text columns...")
-text_cols = df_raw.select_dtypes(include="object").columns
+
+# ---------------------------------------------------------------------------
+# Download the latest 4 years of Chicago crime data via the Socrata API.
+# Dataset ID = ijzp-q8t2. Always re-download; do not use local cache.
+# ---------------------------------------------------------------------------
+
+# compute cutoff date = today minus 4 years, formatted for SoQL $where clause
+cutoff_date = (datetime.utcnow() - timedelta(days=4 * 365)).strftime("%Y-%m-%dT00:00:00")
+
+# Socrata endpoint for the Chicago Crimes dataset
+endpoint = "https://data.cityofchicago.org/resource/ijzp-q8t2.json"
+
+# page through the API in chunks (Socrata caps a single request's page size)
+page_size = 50000
+offset = 0
+all_rows = []
+
+print(f"Downloading Chicago crime records since {cutoff_date} ...")
+while True:
+    params = {
+        "$where": f"date >= '{cutoff_date}'",
+        "$limit": page_size,
+        "$offset": offset,
+        "$order": "date",
+    }
+    response = requests.get(endpoint, params=params, timeout=120)
+    response.raise_for_status()
+    rows = response.json()
+    if not rows:
+        break
+    all_rows.extend(rows)
+    print(f"  fetched {len(rows):,} records (running total: {len(all_rows):,})")
+    if len(rows) < page_size:
+        break
+    offset += page_size
+
+# assemble the full raw dataframe
+df_raw = pd.DataFrame(all_rows)
+print(f"\ndf_raw has {df_raw.shape[1]} columns and {df_raw.shape[0]:,} records")
+
+
+# ---------------------------------------------------------------------------
+# Clean problematic carriage returns / newlines from text columns.
+# ---------------------------------------------------------------------------
+
 df_clean = df_raw.copy()
+
+# find all object (string) columns
+text_cols = df_clean.select_dtypes(include=["object"]).columns
 for col in text_cols:
+    # replace any embedded CR/LF characters with a single space
     df_clean[col] = (
         df_clean[col]
         .astype(str)
-        .str.replace(r"\r", " ", regex=True)
-        .str.replace(r"\n", " ", regex=True)
+        .str.replace("\r\n", " ", regex=False)
+        .str.replace("\r", " ", regex=False)
+        .str.replace("\n", " ", regex=False)
     )
-print(f"Records in df_clean: {len(df_clean):,}")
 
-# Show count of each primary_type value
-print("\nprimary_type counts:")
-print(df_clean["primary_type"].value_counts().to_string())
+print(f"\ndf_clean has {df_clean.shape[0]:,} records")
 
-# Drop records whose primary_type is one of these sensitive categories
-exclude = [
+
+# ---------------------------------------------------------------------------
+# Display a count of primary_type values in df_clean.
+# ---------------------------------------------------------------------------
+
+print("\nprimary_type counts in df_clean:")
+print(df_clean["primary_type"].value_counts())
+
+
+# ---------------------------------------------------------------------------
+# Filter out sensitive / sex-related categories.
+# ---------------------------------------------------------------------------
+
+excluded_types = [
     "CRIMINAL SEXUAL ASSAULT",
     "OFFENSE INVOLVING CHILDREN",
     "SEX OFFENSE",
     "PROSTITUTION",
 ]
-df_filtered = df_clean[~df_clean["primary_type"].isin(exclude)].copy()
-print(f"\nRecords in df_filtered: {len(df_filtered):,}")
 
-# Inspect one random record from df_filtered
-print("\nRandom record from df_filtered:")
-print(df_filtered.sample(1).to_string())
+df_filtered = df_clean[~df_clean["primary_type"].isin(excluded_types)].copy()
+print(f"\ndf_filtered has {df_filtered.shape[0]:,} records")
 
-# Report date range
-print(f"\nMin date: {df_filtered['date'].min()}")
-print(f"Max date: {df_filtered['date'].max()}")
 
-# Save cleaned & filtered dataset to CSV
-output_path = "data/crimes.csv"
-df_filtered.to_csv(output_path, index=False)
-print(f"\nSaved df_filtered to {output_path}")
+# ---------------------------------------------------------------------------
+# Display 1 random record from df_filtered.
+# ---------------------------------------------------------------------------
+
+print("\n1 random record from df_filtered:")
+print(df_filtered.sample(n=1, random_state=None).to_string())
+
+
+# ---------------------------------------------------------------------------
+# Report min and max of the date column.
+# ---------------------------------------------------------------------------
+
+date_min = df_filtered["date"].min()
+date_max = df_filtered["date"].max()
+print(f"\ndate min: {date_min}")
+print(f"date max: {date_max}")
+
+
+# ---------------------------------------------------------------------------
+# Save df_filtered to data/crimes.csv.
+# ---------------------------------------------------------------------------
+
+os.makedirs("data", exist_ok=True)
+out_path = "data/crimes.csv"
+df_filtered.to_csv(out_path, index=False)
+print(f"\nsaved df_filtered to {out_path}")
