@@ -1,362 +1,429 @@
-#!/usr/bin/env python3
-# validate_model.py
-# Load the trained skforecast model, run multi-horizon rolling predictions on the
-# validate/forecast splits, and render an HTML dashboard of validation tables and plots.
+"""
+validate_model.py
+
+Loads the trained skforecast model, generates 1-to-4-month-ahead forecasts at
+every validate/forecast date for every (ward, primary_type) series, computes
+validation scores, and renders the model-validation dashboard to
+docs/forecast_dashboard.html.
+"""
 
 import os
+from math import cos, radians
 
-import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from skforecast.utils import load_forecaster
 
 
-# ---------- Load data ----------
-df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
+# ---------------------------------------------------------------------------
+# Load data and model.
+# ---------------------------------------------------------------------------
 
-KEEP = [
+df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"])
+
+keep_cols = [
     "date", "year", "month", "ward", "primary_type",
     "delta_count", "count_0", "count_1", "count_2", "count_3", "count_4",
 ]
-df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    KEEP].reset_index(drop=True)
-df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", KEEP].reset_index(drop=True)
-df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", KEEP].reset_index(drop=True)
+df_train = df_monthly.loc[df_monthly["TTV"] == "train", keep_cols].copy()
+df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", keep_cols].copy()
+df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", keep_cols].copy()
 
-print(f"df_train    : {len(df_train):,} records")
-print(f"df_validate : {len(df_validate):,} records")
-print(f"df_forecast : {len(df_forecast):,} records")
+print(f"df_train    has {len(df_train):,} records")
+print(f"df_validate has {len(df_validate):,} records")
+print(f"df_forecast has {len(df_forecast):,} records")
 
-
-# ---------- Load forecaster ----------
-forecaster = joblib.load("models/forecaster.joblib")
-print(f"\nLoaded forecaster: {type(forecaster).__name__}")
-print(f"  series seen during fit: {len(forecaster.series_names_in_)}")
-print(f"  lags: {list(forecaster.lags)}   exog features: {forecaster.exog_names_in_}")
+forecaster = load_forecaster("models/forecaster.joblib", verbose=False)
+print("loaded forecaster from models/forecaster.joblib")
 
 
-# ---------- Rolling-origin prediction over validate + forecast dates ----------
-# Strategy: refit=False. The forecaster was already fit on 2022-05..2024-12. For each
-# origin date t in the validate/forecast window we build a last_window of the 6 most
-# recent observed count_0 values ending at t (using the full observed panel), call
-# predict(steps=4) with future year/month exog, and record the per-horizon predictions.
-# Refit each month would retrain XGBoost 15x — unnecessary given the stable feature set.
+# ---------------------------------------------------------------------------
+# Build the full wide panel of actual count_0 for all TTV values except
+# 'incomplete' (we treat the last month as not fully observed, but we still
+# include it so it can be used as history for the preceding prediction).
+# Indexed by date at monthly-start frequency; one column per series_id.
+# ---------------------------------------------------------------------------
 
-all_data = df_monthly.sort_values(["ward", "primary_type", "date"]).copy()
-all_data["series_id"] = all_data["ward"].astype(str) + "_" + all_data["primary_type"]
-series_full = all_data.pivot(index="date", columns="series_id", values="count_0")
-series_full.index.freq = "MS"
-
-exog_dates = pd.date_range(
-    series_full.index.min(),
-    series_full.index.max() + pd.offsets.MonthBegin(4),
-    freq="MS",
+df_all = df_monthly.copy()
+df_all["series_id"] = (
+    "w" + df_all["ward"].astype(int).astype(str).str.zfill(2)
+    + "_" + df_all["primary_type"].str.replace(" ", "_")
 )
-full_exog = pd.DataFrame(
-    {"year": exog_dates.year, "month": exog_dates.month},
-    index=exog_dates,
+
+panel = (
+    df_all.pivot_table(index="date", columns="series_id", values="count_0", aggfunc="first")
+    .sort_index()
+    .asfreq("MS")
 )
-full_exog.index.freq = "MS"
 
-origin_dates = sorted(set(df_validate["date"]) | set(df_forecast["date"]))
-print(f"\nPredicting 4 horizons at {len(origin_dates)} origins "
-      f"({origin_dates[0].date()} -> {origin_dates[-1].date()})...")
+# exog values for any month: year + month derived from the date
+def exog_for_dates(dates):
+    d = pd.DatetimeIndex(dates)
+    return pd.DataFrame({"year": d.year, "month": d.month}, index=d)
 
-all_preds = []
-for t in origin_dates:
-    last_window = series_full.loc[:t].tail(6).astype(float)
-    future_start = t + pd.offsets.MonthBegin(1)
-    future_end = t + pd.offsets.MonthBegin(4)
-    future_exog = full_exog.loc[future_start:future_end]
-    preds = forecaster.predict(steps=4, last_window=last_window, exog=future_exog)
-    preds = preds.reset_index()
-    preds.columns = ["pred_date" if c in (None, "index") else c for c in preds.columns]
-    preds["origin_date"] = t
-    preds["horizon"] = (
-        (preds["pred_date"].dt.year - t.year) * 12 + (preds["pred_date"].dt.month - t.month)
-    ).astype(int)
-    all_preds.append(preds)
 
-pred_long = pd.concat(all_preds, ignore_index=True)
-print(f"Collected {len(pred_long):,} prediction rows (long format)")
+# ---------------------------------------------------------------------------
+# Prediction — for every validate/forecast date t, use the actual history
+# ending at t as last_window and predict t+1..t+4. Strategy: reuse the
+# single pre-trained forecaster (no refit), which is fast and sufficient
+# given the compact validate window.
+# ---------------------------------------------------------------------------
 
-pred_wide = pred_long.pivot_table(
-    index=["origin_date", "level"],
-    columns="horizon",
-    values="pred",
-).reset_index()
-pred_wide.columns.name = None
-pred_wide = pred_wide.rename(
-    columns={
-        "origin_date": "date",
-        "level": "series_id",
-        1: "count_1_pred",
-        2: "count_2_pred",
-        3: "count_3_pred",
-        4: "count_4_pred",
-    }
+pred_dates = sorted(
+    pd.concat([df_validate["date"], df_forecast["date"]]).unique()
 )
-split = pred_wide["series_id"].str.split("_", n=1, expand=True)
-pred_wide["ward"] = split[0].astype(int)
-pred_wide["primary_type"] = split[1]
-pred_cols = ["date", "ward", "primary_type",
-             "count_1_pred", "count_2_pred", "count_3_pred", "count_4_pred"]
-pred_wide = pred_wide[pred_cols]
+print(f"\ngenerating 4-step forecasts at {len(pred_dates)} origin dates ...")
 
-df_validate = df_validate.merge(pred_wide, on=["date", "ward", "primary_type"], how="left")
-df_forecast = df_forecast.merge(pred_wide, on=["date", "ward", "primary_type"], how="left")
-print(f"\ndf_validate shape after merge: {df_validate.shape}")
-print(f"df_forecast shape after merge: {df_forecast.shape}")
+# accumulator: map (date, series_id) -> [pred_1, pred_2, pred_3, pred_4]
+pred_store = {}
+
+lags = 6
+for t in pred_dates:
+    t = pd.Timestamp(t)
+    window = panel.loc[:t].tail(lags)
+    future_dates = pd.date_range(
+        start=t + pd.offsets.MonthBegin(1), periods=4, freq="MS"
+    )
+    exog_future = exog_for_dates(future_dates)
+    preds = forecaster.predict(
+        steps=4,
+        last_window=window,
+        exog=exog_future,
+        suppress_warnings=True,
+    )
+    # preds is long-form: columns = ['level', 'pred'] with datetime index
+    # normalize to wide: rows=future_dates, cols=series_id
+    preds_wide = preds.reset_index().pivot_table(
+        index=preds.index.name or "index",
+        columns="level",
+        values="pred",
+        aggfunc="first",
+    )
+    preds_wide.index = pd.to_datetime(preds_wide.index)
+    preds_wide = preds_wide.sort_index()
+    for series_id in preds_wide.columns:
+        row = preds_wide[series_id].tolist()  # 4 values for t+1..t+4
+        pred_store[(t, series_id)] = row
+
+print("forecasts complete")
 
 
-# ---------- Required sanity prints ----------
-print("\nAll records in df_validate having primary_type=THEFT, ward=27:")
-sub_v = df_validate[(df_validate["primary_type"] == "THEFT") & (df_validate["ward"] == 27)]
-with pd.option_context("display.max_rows", None, "display.max_columns", None,
-                       "display.width", None, "display.expand_frame_repr", False):
-    print(sub_v.to_string(index=False))
-print("\nAll records in df_forecast having primary_type=ARSON, ward=27:")
-sub_f = df_forecast[(df_forecast["primary_type"] == "ARSON") & (df_forecast["ward"] == 27)]
-with pd.option_context("display.max_rows", None, "display.max_columns", None,
-                       "display.width", None, "display.expand_frame_repr", False):
-    print(sub_f.to_string(index=False))
+# helper: attach count_N_pred columns to a dataframe
+def attach_predictions(df):
+    df = df.copy()
+    df["series_id"] = (
+        "w" + df["ward"].astype(int).astype(str).str.zfill(2)
+        + "_" + df["primary_type"].str.replace(" ", "_")
+    )
+    for n in (1, 2, 3, 4):
+        col = f"count_{n}_pred"
+        df[col] = [
+            pred_store.get((pd.Timestamp(d), sid), [np.nan] * 4)[n - 1]
+            for d, sid in zip(df["date"], df["series_id"])
+        ]
+    return df
 
 
-# ---------- Dashboard ----------
-print("\nBuilding dashboard...")
+df_validate = attach_predictions(df_validate)
+df_forecast = attach_predictions(df_forecast)
+
+
+# ---------------------------------------------------------------------------
+# Quick inspection prints.
+# ---------------------------------------------------------------------------
+
+print("\nAll THEFT records in df_validate where ward=27:")
+print(
+    df_validate[
+        (df_validate["primary_type"] == "THEFT") & (df_validate["ward"] == 27)
+    ].to_string()
+)
+
+print("\nAll ARSON records in df_forecast where ward=27:")
+print(
+    df_forecast[
+        (df_forecast["primary_type"] == "ARSON") & (df_forecast["ward"] == 27)
+    ].to_string()
+)
+
+
+# ---------------------------------------------------------------------------
+# Build the dashboard.
+# ---------------------------------------------------------------------------
+
 os.makedirs("docs", exist_ok=True)
+os.makedirs("docs/img", exist_ok=True)
+figures_html = []  # list of HTML snippets stacked vertically in the dashboard
 
 
-def scores_row(actual, pred):
-    mask = actual.notna() & pred.notna()
-    a, p = actual[mask], pred[mask]
-    return {
-        "MAE":  mean_absolute_error(a, p),
-        "RMSE": mean_squared_error(a, p) ** 0.5,
-        "R2":   r2_score(a, p),
-    }
+def add_plotly(fig, first=False):
+    """Append a plotly figure to the dashboard, reusing the CDN-hosted runtime."""
+    kwargs = dict(full_html=False, include_plotlyjs="cdn" if first else False)
+    figures_html.append(f'<div class="block">{fig.to_html(**kwargs)}</div>')
 
 
-# Plot 1 — total monthly count by TTV
-agg = df_monthly.groupby(["date", "TTV"], as_index=False)["count_0"].sum().rename(
-    columns={"count_0": "total_count"}
+def add_table(df, title=None):
+    """Append a DataFrame as an HTML table."""
+    parts = ['<div class="block">']
+    if title:
+        parts.append(f"<h3>{title}</h3>")
+    parts.append(df.to_html(index=False, border=0, classes="tbl"))
+    parts.append("</div>")
+    figures_html.append("".join(parts))
+
+
+# ------- Plot 1: total-count timeseries by TTV --------------------------------
+
+totals = (
+    df_monthly.groupby(["date", "TTV"])["count_0"].sum().rename("total_count").reset_index()
 )
-ttv_colors = {"train": "#1f77b4", "validate": "#2ca02c", "forecast": "#d62728",
-              "incomplete": "#7f7f7f"}
 fig1 = go.Figure()
+ttv_colors = {"train": "#1f77b4", "validate": "#ff7f0e", "forecast": "#2ca02c", "incomplete": "#888888"}
 for ttv in ["train", "validate", "forecast"]:
-    seg = agg[agg["TTV"] == ttv].sort_values("date")
-    fig1.add_trace(go.Scatter(
-        x=seg["date"], y=seg["total_count"],
-        mode="lines+markers", name=ttv,
-        line=dict(color=ttv_colors[ttv]), marker=dict(color=ttv_colors[ttv]),
-    ))
+    sub = totals[totals["TTV"] == ttv].sort_values("date")
+    fig1.add_trace(
+        go.Scatter(
+            x=sub["date"], y=sub["total_count"], mode="lines+markers",
+            name=ttv, line=dict(color=ttv_colors[ttv]),
+        )
+    )
 fig1.update_layout(
-    title="Plot 1 — total monthly crime count by TTV",
-    xaxis_title="date", yaxis_title="sum(count_0)",
-    height=380, margin=dict(l=60, r=20, t=50, b=50),
-    legend=dict(x=1.0, y=1.0, xanchor="right", yanchor="top"),
+    title="Plot 1 — Total monthly crime count, color-coded by TTV",
+    xaxis_title="date", yaxis_title="total_count",
+    showlegend=True, legend=dict(x=0.02, y=0.98),
+    height=420, margin=dict(l=60, r=30, t=50, b=50),
 )
+add_plotly(fig1, first=True)
 
 
-# Table 1 — validation scores per horizon
-rows = []
-for k in (1, 2, 3, 4):
-    s = scores_row(df_validate[f"count_{k}"], df_validate[f"count_{k}_pred"])
-    rows.append({"horizon": f"count_{k}_pred vs count_{k}",
-                 "MAE": round(s["MAE"], 3),
-                 "RMSE": round(s["RMSE"], 3),
-                 "R2": round(s["R2"], 3)})
-scores_df = pd.DataFrame(rows)
-tbl1 = go.Figure(go.Table(
-    header=dict(values=list(scores_df.columns), fill_color="#eaeaea", align="left"),
-    cells=dict(values=[scores_df[c] for c in scores_df.columns], align="left"),
-))
-tbl1.update_layout(title="Table 1 — validation scores",
-                   height=240, margin=dict(l=20, r=20, t=50, b=10))
+# ------- Table 1: validation scores -------------------------------------------
+
+scores_rows = []
+for n in (1, 2, 3, 4):
+    actual_col, pred_col = f"count_{n}", f"count_{n}_pred"
+    sub = df_validate[[actual_col, pred_col]].dropna()
+    y_true = sub[actual_col].to_numpy()
+    y_pred = sub[pred_col].to_numpy()
+    scores_rows.append({
+        "horizon": f"t+{n} months",
+        "MAE": f"{mean_absolute_error(y_true, y_pred):.3f}",
+        "RMSE": f"{np.sqrt(mean_squared_error(y_true, y_pred)):.3f}",
+        "R2": f"{r2_score(y_true, y_pred):.3f}",
+        "n": len(sub),
+    })
+scores_df = pd.DataFrame(scores_rows)
+print("\nvalidation scores:")
+print(scores_df.to_string(index=False))
+add_table(scores_df, title="Table 1 — Validation scores (df_validate)")
 
 
-# Table 2 — feature importances (importance column truncated to first 5 chars, descending)
-fi = forecaster.get_feature_importances().sort_values("importance", ascending=False).reset_index(drop=True)
-fi_disp = fi.astype(str).copy()
-fi_disp["importance"] = fi_disp["importance"].str[:5]
-tbl2 = go.Figure(go.Table(
-    header=dict(values=list(fi_disp.columns), fill_color="#eaeaea", align="left"),
-    cells=dict(values=[fi_disp[c] for c in fi_disp.columns], align="left"),
-))
-tbl2.update_layout(title="Table 2 — feature importances (importance truncated to 5 chars)",
-                   height=320, margin=dict(l=20, r=20, t=50, b=10))
+# ------- Table 2: feature importances -----------------------------------------
+
+fi = forecaster.get_feature_importances().copy()
+fi = fi.sort_values("importance", ascending=False).reset_index(drop=True)
+fi_disp = fi.astype(str)
+fi_disp["importance"] = fi_disp["importance"].str.slice(0, 5)
+add_table(fi_disp, title="Table 2 — Feature importances (descending)")
 
 
-# Plots 2..5 — scatter count_N_pred vs count_N, opaque blue dots
-def scatter_pred_vs_actual(k):
-    df = df_validate[[f"count_{k}", f"count_{k}_pred"]].copy()
-    df = df[(df[f"count_{k}"] > 0) & (df[f"count_{k}_pred"] > 0)]
+# ------- Plots 2-5: pred vs actual scatter ------------------------------------
+
+def scatter_pred_vs_actual(n):
+    col_a = f"count_{n}"
+    col_p = f"count_{n}_pred"
+    sub = df_validate[[col_a, col_p]].dropna()
+    sub = sub[(sub[col_a] > 0) & (sub[col_p] > 0)]
+    trace_cls = go.Scattergl if len(sub) > 1000 else go.Scatter
     fig = go.Figure()
-    fig.add_trace(go.Scattergl(
-        x=df[f"count_{k}"], y=df[f"count_{k}_pred"],
-        mode="markers", name="validate",
-        marker=dict(color="blue", opacity=0.4, size=5),
-    ))
+    fig.add_trace(
+        trace_cls(
+            x=sub[col_a], y=sub[col_p], mode="markers",
+            marker=dict(color="blue", opacity=0.4, size=5),
+            name=f"count_{n}_pred",
+        )
+    )
     xs = np.array([0.8, 600])
-    fig.add_trace(go.Scatter(
-        x=xs, y=xs, mode="lines", name="prediction=actual",
-        line=dict(color="black", dash="dash"),
-    ))
-    fig.update_xaxes(type="log", range=[np.log10(0.8), np.log10(600)], title=f"count_{k} (actual)")
-    fig.update_yaxes(type="log", range=[np.log10(0.2), np.log10(600)], title=f"count_{k}_pred (prediction)")
-    fig.update_layout(
-        title=f"Plot {k + 1} — count_{k}_pred vs count_{k}",
-        height=420, margin=dict(l=70, r=20, t=50, b=60),
-        legend=dict(x=0.98, y=0.02, xanchor="right", yanchor="bottom",
-                    bgcolor="rgba(255,255,255,0.7)"),
+    fig.add_trace(
+        go.Scatter(
+            x=xs, y=xs, mode="lines",
+            line=dict(color="black", dash="dash"),
+            name="prediction=actual",
+        )
     )
-    return fig
+    fig.update_layout(
+        title=f"Plot {n+1} — count_{n}_pred vs. count_{n}",
+        xaxis=dict(title=f"count_{n} (actual)", type="log", range=[np.log10(0.8), np.log10(600)]),
+        yaxis=dict(title=f"count_{n}_pred", type="log", range=[np.log10(0.2), np.log10(600)]),
+        showlegend=True,
+        legend=dict(x=0.98, y=0.02, xanchor="right", yanchor="bottom"),
+        height=460, margin=dict(l=60, r=30, t=50, b=50),
+    )
+    add_plotly(fig)
 
 
-fig2, fig3, fig4, fig5 = (scatter_pred_vs_actual(k) for k in (1, 2, 3, 4))
+for n in (1, 2, 3, 4):
+    scatter_pred_vs_actual(n)
 
 
-# Plots 6..8 — per-primary_type totals with multi-horizon forecasts
-def per_type_timeseries(primary_type, plot_idx):
-    sub = df_validate[df_validate["primary_type"] == primary_type].copy()
-    g = sub.groupby("date", as_index=False).agg(
+# ------- Plots 6-8: primary_type timeseries with forecasts --------------------
+
+def plot_primary_type_timeseries(ptype, plot_num, line_color="blue"):
+    sub = df_validate[df_validate["primary_type"] == ptype].copy()
+    by_date = sub.groupby("date").agg(
         count_0=("count_0", "sum"),
         count_1_pred=("count_1_pred", "sum"),
         count_2_pred=("count_2_pred", "sum"),
         count_3_pred=("count_3_pred", "sum"),
         count_4_pred=("count_4_pred", "sum"),
-    ).sort_values("date")
+    ).reset_index().sort_values("date")
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=g["date"], y=g["count_0"], mode="lines+markers",
-        name=f"{primary_type} count_0",
-        line=dict(color="blue"), marker=dict(color="blue"),
-        error_y=dict(type="data", array=np.sqrt(g["count_0"]), visible=True, color="blue"),
-    ))
-    pred_colors = {"count_1_pred": "orange", "count_2_pred": "green",
-                   "count_3_pred": "purple", "count_4_pred": "brown"}
-    for k in (1, 2, 3, 4):
-        col = f"count_{k}_pred"
-        fig.add_trace(go.Scatter(
-            x=g["date"] + pd.DateOffset(months=k), y=g[col],
-            mode="lines+markers", name=col,
-            line=dict(color=pred_colors[col]), marker=dict(color=pred_colors[col]),
-        ))
-    fig.update_layout(
-        title=f"Plot {plot_idx} — {primary_type} timeseries with multi-horizon forecasts",
-        xaxis_title="date", yaxis_title="sum(count_0)",
-        height=420, margin=dict(l=70, r=20, t=50, b=60),
-        legend=dict(x=0.98, y=0.98, xanchor="right", yanchor="top",
-                    bgcolor="rgba(255,255,255,0.7)"),
+    fig.add_trace(
+        go.Scatter(
+            x=by_date["date"], y=by_date["count_0"], mode="lines+markers",
+            name="count_0 (actual)", line=dict(color=line_color),
+            error_y=dict(type="data", array=np.sqrt(by_date["count_0"].to_numpy()), visible=True),
+        )
     )
-    return fig
+    for n, color in zip((1, 2, 3, 4), ["#ff7f0e", "#2ca02c", "#9467bd", "#8c564b"]):
+        shifted_dates = by_date["date"] + pd.offsets.MonthBegin(n)
+        fig.add_trace(
+            go.Scatter(
+                x=shifted_dates, y=by_date[f"count_{n}_pred"], mode="lines+markers",
+                name=f"count_{n}_pred (t+{n})", line=dict(color=color),
+            )
+        )
+    fig.update_layout(
+        title=f"Plot {plot_num} — {ptype} monthly totals with multi-horizon forecasts",
+        xaxis_title="date", yaxis_title="summed count_0",
+        showlegend=True,
+        legend=dict(x=0.98, y=0.98, xanchor="right", yanchor="top"),
+        height=460, margin=dict(l=60, r=30, t=50, b=50),
+    )
+    add_plotly(fig)
 
 
-fig6 = per_type_timeseries("THEFT", 6)
-fig7 = per_type_timeseries("BURGLARY", 7)
-fig8 = per_type_timeseries("ARSON", 8)
+plot_primary_type_timeseries("THEFT", 6)
+plot_primary_type_timeseries("BURGLARY", 7)
+plot_primary_type_timeseries("ARSON", 8)
 
 
-# Plot 9 — per-ward timeseries for wards 27, 29, 38 with multi-horizon forecasts, log y
+# ------- Plot 9: per-ward timeseries for wards 27, 29, 38 ---------------------
+
+wards_to_plot = [27, 29, 38]
 ward_colors = {27: "red", 29: "blue", 38: "green"}
+
 fig9 = go.Figure()
-for ward, wcolor in ward_colors.items():
-    sub = df_validate[df_validate["ward"] == ward].copy()
-    g = sub.groupby("date", as_index=False).agg(
+for w in wards_to_plot:
+    sub = df_validate[df_validate["ward"] == w].copy()
+    by_date = sub.groupby("date").agg(
         count_0=("count_0", "sum"),
         count_1_pred=("count_1_pred", "sum"),
         count_2_pred=("count_2_pred", "sum"),
         count_3_pred=("count_3_pred", "sum"),
         count_4_pred=("count_4_pred", "sum"),
-    ).sort_values("date")
-    fig9.add_trace(go.Scatter(
-        x=g["date"], y=g["count_0"], mode="lines+markers",
-        name=f"ward {ward} count_0",
-        line=dict(color=wcolor), marker=dict(color=wcolor, size=7),
-        error_y=dict(type="data", array=np.sqrt(g["count_0"]), visible=True, color=wcolor),
-    ))
-    for k in (1, 2, 3, 4):
-        col = f"count_{k}_pred"
-        fig9.add_trace(go.Scatter(
-            x=g["date"] + pd.DateOffset(months=k), y=g[col],
-            mode="lines+markers", name=f"ward {ward} {col}",
-            line=dict(color=wcolor, dash="dot"), marker=dict(color=wcolor, size=4),
-            opacity=0.6,
-        ))
-fig9.update_yaxes(type="log")
-fig9.update_layout(
-    title="Plot 9 — per-ward timeseries with multi-horizon forecasts (wards 27, 29, 38)",
-    xaxis_title="date", yaxis_title="sum(count_0) (log)",
-    height=520, margin=dict(l=70, r=20, t=50, b=60),
-    legend=dict(x=0.98, y=0.98, xanchor="right", yanchor="top",
-                bgcolor="rgba(255,255,255,0.7)"),
-)
-
-
-# Plot 10 — THEFT heatmap over a Chicago streetmap, most recent complete month
-theft_all = pd.read_csv("data/crimes.csv",
-                        usecols=["date", "primary_type", "latitude", "longitude"],
-                        low_memory=False)
-theft_all = theft_all[theft_all["primary_type"] == "THEFT"].copy()
-theft_all["date"] = pd.to_datetime(theft_all["date"], errors="coerce")
-theft_all = theft_all.dropna(subset=["date", "latitude", "longitude"])
-# The latest month in the source file is known-incomplete — use the month before it
-latest_period = theft_all["date"].dt.to_period("M").max()
-last_complete = latest_period - 1
-theft_recent = theft_all[theft_all["date"].dt.to_period("M") == last_complete]
-print(f"Plot 10: THEFT in {last_complete} ({len(theft_recent):,} records)")
-
-# Pre-bin on a regular lat/lon grid; pass each non-empty bin centre to Densitymapbox
-# with the raw bin count (linear color scale per the current spec)
-nx, ny = 90, 90
-lon_edges = np.linspace(-87.85, -87.5, nx + 1)
-lat_edges = np.linspace(41.65, 42.05, ny + 1)
-H, _, _ = np.histogram2d(theft_recent["latitude"], theft_recent["longitude"],
-                         bins=[lat_edges, lon_edges])
-lat_ctr = 0.5 * (lat_edges[:-1] + lat_edges[1:])
-lon_ctr = 0.5 * (lon_edges[:-1] + lon_edges[1:])
-ii, jj = np.nonzero(H)
-z = H[ii, jj]
-
-fig10 = go.Figure(go.Densitymapbox(
-    lat=lat_ctr[ii], lon=lon_ctr[jj], z=z,
-    radius=12,
-    colorscale="YlOrRd",
-    colorbar=dict(title="count"),
-))
-fig10.update_layout(
-    mapbox_style="open-street-map",
-    mapbox_center={"lat": 41.85, "lon": -87.675},
-    mapbox_zoom=10,
-    title=f"Plot 10 — THEFT heatmap over Chicago ({last_complete})",
-    height=600, margin=dict(l=0, r=0, t=50, b=0),
-)
-
-
-# ---------- Assemble dashboard: exactly 10 px between adjacent blocks ----------
-css = """
-body { margin: 0; padding: 0; font-family: sans-serif; }
-.block { margin: 0; padding: 0; }
-.block + .block { margin-top: 10px; }
-img { display: block; max-width: 100%; height: auto; }
-"""
-html_parts = [
-    "<!DOCTYPE html><html><head><meta charset='utf-8'>",
-    "<title>Chicago crime — forecast dashboard</title>",
-    f"<style>{css}</style></head><body>",
-]
-html_parts.append(
-    f"<div class='block'>{fig1.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
-)
-for fig in (tbl1, tbl2, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10):
-    html_parts.append(
-        f"<div class='block'>{fig.to_html(full_html=False, include_plotlyjs=False)}</div>"
+    ).reset_index().sort_values("date")
+    c = ward_colors[w]
+    fig9.add_trace(
+        go.Scatter(
+            x=by_date["date"], y=by_date["count_0"], mode="lines+markers",
+            name=f"ward {w} count_0", line=dict(color=c),
+            error_y=dict(type="data", array=np.sqrt(by_date["count_0"].to_numpy()), visible=True),
+        )
     )
-html_parts.append("</body></html>")
+    for n, dash in zip((1, 2, 3, 4), ["dot", "dash", "longdash", "dashdot"]):
+        shifted = by_date["date"] + pd.offsets.MonthBegin(n)
+        fig9.add_trace(
+            go.Scatter(
+                x=shifted, y=by_date[f"count_{n}_pred"], mode="lines",
+                name=f"ward {w} count_{n}_pred",
+                line=dict(color=c, dash=dash),
+            )
+        )
+fig9.update_layout(
+    title="Plot 9 — Per-ward monthly totals with forecasts (wards 27, 29, 38)",
+    xaxis_title="date", yaxis_title="summed count_0 (log)",
+    yaxis_type="log",
+    showlegend=True,
+    legend=dict(x=0.98, y=0.98, xanchor="right", yanchor="top"),
+    height=540, margin=dict(l=60, r=30, t=50, b=50),
+)
+add_plotly(fig9)
 
-dashboard_path = "docs/forecast_dashboard.html"
-with open(dashboard_path, "w") as f:
-    f.write("".join(html_parts))
-print(f"Saved dashboard to {dashboard_path}")
+
+# ------- Plot 10: THEFT heatmap over Chicago streetmap ------------------------
+
+raw = pd.read_csv("data/crimes.csv", low_memory=False)
+raw["date"] = pd.to_datetime(raw["date"], errors="coerce")
+raw = raw.dropna(subset=["date", "latitude", "longitude"])
+
+# most recent COMPLETE calendar month = the month before the latest recorded month
+latest_ts = raw["date"].max()
+latest_period = latest_ts.to_period("M")
+recent_complete = (latest_period - 1).to_timestamp()  # first day of that month
+month_end = (latest_period).to_timestamp() - pd.Timedelta(days=1)
+# (recent_complete through the last day of the preceding month)
+m_start = recent_complete
+m_end = (recent_complete + pd.offsets.MonthEnd(0))
+
+theft_month = raw[
+    (raw["primary_type"] == "THEFT")
+    & (raw["date"] >= m_start)
+    & (raw["date"] <= m_end + pd.Timedelta(days=1))
+].copy()
+print(f"\nPlot 10 month: {m_start.date()}..{m_end.date()}  "
+      f"({len(theft_month):,} THEFT records)")
+
+fig10 = go.Figure(
+    go.Densitymapbox(
+        lat=theft_month["latitude"],
+        lon=theft_month["longitude"],
+        radius=8,
+        colorscale="YlOrRd",
+        showscale=True,
+    )
+)
+fig10.update_layout(
+    title=f"Plot 10 — THEFT heatmap over Chicago ({m_start.strftime('%Y-%m')})",
+    mapbox=dict(
+        style="open-street-map",
+        center=dict(lat=41.85, lon=-87.675),
+        zoom=9.7,
+    ),
+    height=700, margin=dict(l=0, r=0, t=50, b=0),
+)
+add_plotly(fig10)
+
+
+# ---------------------------------------------------------------------------
+# Assemble the HTML dashboard — 10 px between every adjacent element.
+# ---------------------------------------------------------------------------
+
+dashboard = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chicago Crime — Forecast Validation Dashboard</title>
+<style>
+  body {{ font-family: -apple-system, Arial, sans-serif; margin: 10px; padding: 0; }}
+  h1 {{ margin: 0 0 10px 0; padding: 0; }}
+  h3 {{ margin: 0 0 6px 0; padding: 0; }}
+  .block {{ margin: 0 0 10px 0; padding: 0; }}
+  .block:last-child {{ margin-bottom: 0; }}
+  table.tbl {{ border-collapse: collapse; }}
+  table.tbl th, table.tbl td {{ padding: 4px 10px; border-bottom: 1px solid #ddd; text-align: right; }}
+  table.tbl th {{ background: #f4f4f4; text-align: left; }}
+</style>
+</head>
+<body>
+<div class="block"><h1>Chicago Crime — Forecast Validation Dashboard</h1></div>
+{chr(10).join(figures_html)}
+</body>
+</html>
+"""
+out_path = "docs/forecast_dashboard.html"
+with open(out_path, "w") as f:
+    f.write(dashboard)
+print(f"\nsaved dashboard to {out_path}")
