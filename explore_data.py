@@ -1,211 +1,168 @@
 #!/usr/bin/env python3
-"""Profile the Chicago crimes dataset and render an HTML exploration dashboard.
+# explore_data.py
+# Profile the Chicago crimes dataset and produce an HTML dashboard of exploratory plots.
 
-Reads  : data/crimes.csv                    (produced by get_data.py)
-Writes : docs/data_exploration.html         (published via GitHub Pages)
-"""
-
+import os
 from math import cos, radians
-from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-SEED = 42
-SCATTER_SAMPLE_SIZE = 10_000
-GAP_PX = 10
-STATIC_DPI = 120
-
-ROOT = Path(__file__).parent
-INPUT_PATH = ROOT / "data" / "crimes.csv"
-OUTPUT_PATH = ROOT / "docs" / "data_exploration.html"
-IMG_DIR = ROOT / "docs" / "img"
-IMG_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# 1. Load & profile
-# ---------------------------------------------------------------------------
-print(f"Loading {INPUT_PATH} ...")
-df_filtered = pd.read_csv(INPUT_PATH)
-df_filtered["date"] = pd.to_datetime(df_filtered["date"])
+# Load the cleaned & filtered crimes dataset saved by get_data.py
+df_filtered = pd.read_csv("data/crimes.csv", low_memory=False)
 print(f"Records in df_filtered: {len(df_filtered):,}")
 
-print("\n--- Profile df_filtered ---")
-print(df_filtered.dtypes)
-print()
-print(df_filtered.describe(include="all"))
+# Profile df_filtered: shape, dtypes, nulls, uniques, numeric stats, head
+print("\n--- Shape ---")
+print(df_filtered.shape)
 
-# ---------------------------------------------------------------------------
-# 2. Aggregations
-# ---------------------------------------------------------------------------
-daily = df_filtered.groupby(df_filtered["date"].dt.date).size().reset_index(name="count")
-daily["date"] = pd.to_datetime(daily["date"])
+print("\n--- Dtypes ---")
+print(df_filtered.dtypes.to_string())
 
-weekly = df_filtered.groupby(df_filtered["date"].dt.to_period("W")).size().reset_index(name="count")
-weekly["date"] = weekly["date"].apply(lambda p: p.start_time)
+print("\n--- Null counts ---")
+nulls = df_filtered.isna().sum()
+print(nulls[nulls > 0].sort_values(ascending=False).to_string() or "(none)")
 
-monthly = df_filtered.groupby(df_filtered["date"].dt.to_period("M")).size().reset_index(name="count")
-monthly["date"] = monthly["date"].apply(lambda p: p.start_time)
+print("\n--- Unique counts per column ---")
+print(df_filtered.nunique().sort_values(ascending=False).to_string())
 
-type_counts = df_filtered["primary_type"].value_counts().sort_values(ascending=False)
-ward_counts = df_filtered["ward"].dropna().astype(int).value_counts().sort_values(ascending=False)
+print("\n--- Numeric summary ---")
+print(df_filtered.describe(include="number").to_string())
 
-theft = df_filtered[df_filtered["primary_type"] == "THEFT"].copy()
-theft["month"] = theft["date"].dt.to_period("M").apply(lambda p: p.start_time)
-theft_by_ward = theft.groupby(["month", "ward"]).size().reset_index(name="count")
-wards = sorted(theft_by_ward["ward"].dropna().unique())
-
-scatter_sample = (
-    df_filtered.dropna(subset=["latitude", "longitude", "ward"])
-    .sample(SCATTER_SAMPLE_SIZE, random_state=SEED)
-    .copy()
-)
-scatter_sample["neg_longitude"] = -scatter_sample["longitude"]
+print("\n--- Head (3 rows) ---")
+print(df_filtered.head(3).to_string())
 
 
-# ---------------------------------------------------------------------------
-# 3. Build figures
-# ---------------------------------------------------------------------------
-def base_layout(title, height, **kwargs):
-    return dict(
-        title=title,
-        height=height,
-        template="plotly_white",
-        showlegend=False,
-        margin=dict(l=60, r=40, t=50, b=60),
-        **kwargs,
-    )
+# ---------- Build exploratory dashboard ----------
+print("\nBuilding dashboard plots...")
+df_filtered["date"] = pd.to_datetime(df_filtered["date"])
+os.makedirs("docs/img", exist_ok=True)
 
-
-# Plot 1 — daily. Use Scattergl since daily series has > 1,000 points.
-fig1 = go.Figure(
-    data=[go.Scattergl(x=daily["date"], y=daily["count"], mode="lines",
-                       line=dict(color="steelblue", width=1))],
-    layout=base_layout("Plot 1 — Daily crime count", 400),
+# Plot 1: daily record count (Scattergl because >1000 points)
+daily = df_filtered.groupby(df_filtered["date"].dt.floor("D")).size()
+fig1 = go.Figure(go.Scattergl(x=daily.index, y=daily.values, mode="lines"))
+fig1.update_layout(
+    title="Daily crime count",
+    xaxis_title="Date",
+    yaxis_title="Count",
+    height=350,
+    margin=dict(l=60, r=20, t=50, b=50),
 )
 
-# Plot 2 — weekly
-fig2 = go.Figure(
-    data=[go.Scatter(x=weekly["date"], y=weekly["count"], mode="lines",
-                     line=dict(color="darkorange", width=1.5))],
-    layout=base_layout("Plot 2 — Weekly crime count", 400),
+# Plot 2: weekly record count
+weekly = df_filtered.set_index("date").resample("W").size()
+fig2 = go.Figure(go.Scatter(x=weekly.index, y=weekly.values, mode="lines"))
+fig2.update_layout(
+    title="Weekly crime count",
+    xaxis_title="Date",
+    yaxis_title="Count",
+    height=350,
+    margin=dict(l=60, r=20, t=50, b=50),
 )
 
-# Plot 3 — monthly
-fig3 = go.Figure(
-    data=[go.Scatter(x=monthly["date"], y=monthly["count"], mode="lines+markers",
-                     line=dict(color="green", width=2))],
-    layout=base_layout("Plot 3 — Monthly crime count", 400),
+# Plot 3: monthly record count
+monthly = df_filtered.set_index("date").resample("MS").size()
+fig3 = go.Figure(go.Scatter(x=monthly.index, y=monthly.values, mode="lines"))
+fig3.update_layout(
+    title="Monthly crime count",
+    xaxis_title="Date",
+    yaxis_title="Count",
+    height=350,
+    margin=dict(l=60, r=20, t=50, b=50),
 )
 
-# Plot 4 — primary_type counts, log y
-fig4 = go.Figure(
-    data=[go.Bar(x=type_counts.index, y=type_counts.values, marker_color="mediumpurple")],
-    layout=base_layout("Plot 4 — Count by primary_type (log y)", 550),
+# Plot 4: primary_type counts, descending, log y
+ptype_counts = df_filtered["primary_type"].value_counts()
+fig4 = go.Figure(go.Bar(x=ptype_counts.index, y=ptype_counts.values))
+fig4.update_layout(
+    title="primary_type counts",
+    xaxis_title="primary_type",
+    yaxis_title="Count (log)",
+    yaxis_type="log",
+    height=500,
+    margin=dict(l=60, r=20, t=50, b=140),
 )
-fig4.update_yaxes(type="log", title_text="count (log)")
-fig4.update_xaxes(tickangle=45)
 
-# Plot 5 — ward counts
+# Plot 5: ward counts, descending
+ward_counts = df_filtered["ward"].value_counts()
 fig5 = go.Figure(
-    data=[go.Bar(x=ward_counts.index.astype(str), y=ward_counts.values, marker_color="coral")],
-    layout=base_layout("Plot 5 — Count by ward", 500),
+    go.Bar(x=ward_counts.index.astype(int).astype(str), y=ward_counts.values)
 )
-fig5.update_xaxes(
-    title_text="ward", tickangle=90,
-    categoryorder="array", categoryarray=[str(w) for w in ward_counts.index],
+fig5.update_layout(
+    title="Ward counts",
+    xaxis_title="ward",
+    yaxis_title="Count",
+    height=400,
+    xaxis=dict(type="category"),
+    margin=dict(l=60, r=20, t=50, b=60),
 )
-fig5.update_yaxes(title_text="count")
 
-# Plot 6 — monthly THEFT by ward, log y, no legend → static PNG
-THEFT_PNG = IMG_DIR / "theft_per_ward.png"
-fig6_mpl, ax6 = plt.subplots(figsize=(10, 5))
-cmap6 = plt.get_cmap("hsv")
-for i, ward in enumerate(wards):
-    wd = theft_by_ward[theft_by_ward["ward"] == ward]
-    ax6.plot(wd["month"], wd["count"],
-             color=cmap6(i / max(len(wards) - 1, 1)), linewidth=1, alpha=0.6)
-ax6.set_yscale("log")
-ax6.set_ylim(10, 1100)
-ax6.set_title("Plot 6 — Monthly THEFT count by ward (log y)")
-ax6.set_xlabel("month")
-ax6.set_ylabel("count (log)")
-ax6.grid(True, which="both", alpha=0.3)
-fig6_mpl.tight_layout()
-fig6_mpl.savefig(THEFT_PNG, dpi=STATIC_DPI)
-plt.close(fig6_mpl)
-print(f"Saved {THEFT_PNG}")
+# Plot 6 (static PNG): monthly THEFT count per ward
+theft = df_filtered[df_filtered["primary_type"] == "THEFT"].copy()
+theft["month"] = theft["date"].dt.to_period("M").dt.to_timestamp()
+theft_by_ward = theft.groupby(["month", "ward"]).size().unstack(fill_value=0)
+fig, ax = plt.subplots(figsize=(10, 5))
+for ward in theft_by_ward.columns:
+    ax.plot(theft_by_ward.index, theft_by_ward[ward], alpha=0.6)
+ax.set_yscale("log")
+ax.set_ylim(10, 1100)
+ax.set_xlabel("Date")
+ax.set_ylabel("THEFT count (log)")
+ax.set_title("Monthly THEFT count per ward")
+plt.tight_layout()
+plt.savefig("docs/img/theft_per_ward.png", dpi=120)
+plt.close()
 
-# Plot 7 — latitude vs. -longitude, colored by ward, geographic aspect → static PNG
-GEO_PNG = IMG_DIR / "geo_scatter.png"
-fig7_mpl, ax7 = plt.subplots(figsize=(9, 10))
-ax7.scatter(
-    scatter_sample["neg_longitude"], scatter_sample["latitude"],
-    c=scatter_sample["ward"].astype(int), cmap="tab20",
-    s=8, alpha=0.8, linewidths=0,
+# Plot 7 (static PNG): geographic scatter of 10k random records, colored by ward
+geo = df_filtered.dropna(subset=["latitude", "longitude", "ward"])
+sample = geo.sample(n=10_000, random_state=42)
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.scatter(
+    -sample["longitude"],
+    sample["latitude"],
+    c=sample["ward"],
+    cmap="tab20",
+    s=8,
+    alpha=0.8,
 )
-ax7.set_xlim(87.85, 87.5)
-ax7.set_ylim(41.65, 42.05)
-ax7.set_aspect(1 / cos(radians(41.85)))
-ax7.set_xlabel("-longitude")
-ax7.set_ylabel("latitude")
-ax7.set_title(
-    f"Plot 7 — {SCATTER_SAMPLE_SIZE:,} random locations "
-    "(latitude vs. -longitude), colored by ward"
-)
-fig7_mpl.tight_layout()
-fig7_mpl.savefig(GEO_PNG, dpi=STATIC_DPI)
-plt.close(fig7_mpl)
-print(f"Saved {GEO_PNG}")
+ax.set_xlim(87.85, 87.5)  # inverted: 87.85 on left, 87.5 on right
+ax.set_ylim(41.65, 42.05)
+# Aspect ratio compensates for longitude foreshortening at Chicago's latitude
+ax.set_aspect(1 / cos(radians(41.85)))
+ax.set_xlabel("-longitude")
+ax.set_ylabel("latitude")
+ax.set_title("Chicago crime locations (10k random sample, colored by ward)")
+plt.tight_layout()
+plt.savefig("docs/img/geo_scatter.png", dpi=120)
+plt.close()
 
-
-# ---------------------------------------------------------------------------
-# 4. Stack figures into one HTML page with exactly GAP_PX between them
-# ---------------------------------------------------------------------------
-panels = [
-    fig1, fig2, fig3, fig4, fig5,
-    f'<img src="img/{THEFT_PNG.name}" alt="Plot 6 — Monthly THEFT count by ward" '
-    'style="width:100%;height:auto;display:block;">',
-    f'<img src="img/{GEO_PNG.name}" alt="Plot 7 — random locations by ward" '
-    'style="width:100%;height:auto;display:block;">',
-]
-
-css = f"""
-  body {{ font-family: sans-serif; max-width: 1040px; margin: {GAP_PX}px auto; padding: 0 20px; }}
-  h1    {{ margin: 0 0 {GAP_PX}px 0; }}
-  .plot {{ margin: 0 0 {GAP_PX}px 0; padding: 0; }}
-  .plot:last-child {{ margin-bottom: 0; }}
+# Assemble dashboard: adjacent siblings get exactly 10px of vertical space between them
+css = """
+body { margin: 0; padding: 0; font-family: sans-serif; }
+.plot { margin: 0; padding: 0; }
+.plot + .plot { margin-top: 10px; }
+img { display: block; max-width: 100%; height: auto; }
 """
 
-body_parts = ["<h1>Chicago Crime Data — Exploration Dashboard</h1>"]
-plotly_count = 0
-for panel in panels:
-    body_parts.append('<div class="plot">')
-    if isinstance(panel, str):
-        body_parts.append(panel)
-    else:
-        include_js = "cdn" if plotly_count == 0 else False
-        body_parts.append(panel.to_html(full_html=False, include_plotlyjs=include_js))
-        plotly_count += 1
-    body_parts.append("</div>")
+html_parts = [
+    "<!DOCTYPE html><html><head><meta charset='utf-8'>",
+    "<title>Chicago crime — data exploration</title>",
+    f"<style>{css}</style></head><body>",
+]
 
-html = (
-    "<!DOCTYPE html>\n"
-    "<html lang=\"en\">\n"
-    "<head>\n"
-    "<meta charset=\"utf-8\">\n"
-    "<title>Chicago Crime Data — Exploration Dashboard</title>\n"
-    f"<style>{css}</style>\n"
-    "</head>\n"
-    "<body>\n"
-    + "\n".join(body_parts)
-    + "\n</body>\n</html>\n"
+# First plotly figure loads plotly.js from CDN; the rest reuse that runtime
+html_parts.append(
+    f"<div class='plot'>{fig1.to_html(full_html=False, include_plotlyjs='cdn')}</div>"
 )
+for fig in (fig2, fig3, fig4, fig5):
+    html_parts.append(
+        f"<div class='plot'>{fig.to_html(full_html=False, include_plotlyjs=False)}</div>"
+    )
+html_parts.append("<div class='plot'><img src='img/theft_per_ward.png' alt='THEFT per ward'></div>")
+html_parts.append("<div class='plot'><img src='img/geo_scatter.png' alt='Chicago geo scatter'></div>")
+html_parts.append("</body></html>")
 
-OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-OUTPUT_PATH.write_text(html)
-print(f"\nSaved dashboard to {OUTPUT_PATH}")
+with open("docs/data_exploration.html", "w") as f:
+    f.write("".join(html_parts))
+print("Saved docs/data_exploration.html")
