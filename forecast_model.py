@@ -1,116 +1,79 @@
 #!/usr/bin/env python3
-"""Train an skforecast recursive multi-series forecaster on monthly Chicago crime data.
+# forecast_model.py
+# Train a recursive time-series forecaster (skforecast) on the monthly Chicago crimes panel.
 
-Reads  : data/crimes_monthly.csv
-Writes : data/crimes_train.csv
-         data/crimes_validate.csv
-         data/crimes_forecast.csv
-         models/forecaster.joblib
-
-Approach — one timeseries per (ward, primary_type), count_0 as the target.
-Fit ONCE on all history before 2025-01-01 (TTV = 'train').
-"""
-
-from pathlib import Path
+import os
 
 import joblib
 import pandas as pd
-import xgboost as xgb
+from xgboost import XGBRegressor
 from skforecast.recursive import ForecasterRecursiveMultiSeries
 
-SEED = 42
-LAGS = 6
-CUTOFF_DATE = pd.Timestamp("2025-01-01")
-
-ROOT = Path(__file__).parent
-MONTHLY_PATH = ROOT / "data" / "crimes_monthly.csv"
-TRAIN_CSV_PATH    = ROOT / "data" / "crimes_train.csv"
-VALIDATE_CSV_PATH = ROOT / "data" / "crimes_validate.csv"
-FORECAST_CSV_PATH = ROOT / "data" / "crimes_forecast.csv"
-MODELS_DIR = ROOT / "models"
-MODEL_PATH = MODELS_DIR / "forecaster.joblib"
-
-TRAIN_COLS = [
+KEEP = [
     "date", "year", "month", "ward", "primary_type",
     "delta_count", "count_0", "count_1", "count_2", "count_3", "count_4",
 ]
 
-pd.set_option("display.max_columns", None)
-pd.set_option("display.width", None)
+# Load the prepared monthly panel produced by prep_data.py
+df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
+
+# Merge the test bucket into train — the forecaster uses train for fitting and validate for out-of-time eval
+df_monthly.loc[df_monthly["TTV"] == "test", "TTV"] = "train"
+
+# Split into the three working sets by TTV flag, keeping only the modelling columns
+df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    KEEP].reset_index(drop=True)
+df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", KEEP].reset_index(drop=True)
+df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", KEEP].reset_index(drop=True)
+
+print(f"df_train    : {len(df_train):,} records")
+print(f"df_validate : {len(df_validate):,} records")
+print(f"df_forecast : {len(df_forecast):,} records")
+
+print("\n5 random records from df_train:")
+with pd.option_context("display.max_columns", None, "display.width", None):
+    print(df_train.sample(5, random_state=7).to_string(index=False))
 
 
-# ---------------------------------------------------------------------------
-# 1. Load & split
-# ---------------------------------------------------------------------------
-print(f"Loading {MONTHLY_PATH} ...")
-df_monthly = pd.read_csv(MONTHLY_PATH, parse_dates=["date"])
+# ---------- Train multi-series recursive forecaster ----------
+# Reshape df_train into the (date x series_id) wide panel skforecast expects
+df_hist = df_train.sort_values(["ward", "primary_type", "date"]).copy()
+df_hist["series_id"] = df_hist["ward"].astype(str) + "_" + df_hist["primary_type"]
 
-df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    TRAIN_COLS].copy()
-df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", TRAIN_COLS].copy()
-df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", TRAIN_COLS].copy()
+# series: each column is one (ward, primary_type) time series of count_0
+series = df_hist.pivot(index="date", columns="series_id", values="count_0")
+series.index.freq = "MS"  # monthly-start; tells skforecast the panel is regular
 
-print(f"df_train    records: {len(df_train):,}")
-print(f"df_validate records: {len(df_validate):,}")
-print(f"df_forecast records: {len(df_forecast):,}")
-
-df_train.to_csv(TRAIN_CSV_PATH, index=False)
-df_validate.to_csv(VALIDATE_CSV_PATH, index=False)
-df_forecast.to_csv(FORECAST_CSV_PATH, index=False)
-print(f"Saved {TRAIN_CSV_PATH}")
-print(f"Saved {VALIDATE_CSV_PATH}")
-print(f"Saved {FORECAST_CSV_PATH}")
-
-print("\n--- 5 random records from df_train ---")
-print(df_train.sample(5, random_state=SEED).to_string(index=False))
-
-
-# ---------------------------------------------------------------------------
-# 2. Pivot to wide-format panel: rows=date, cols=(ward, primary_type) series
-# ---------------------------------------------------------------------------
-def series_name(ward, primary_type):
-    pt = primary_type.replace(" ", "_").replace("-", "_")
-    return f"w{int(ward)}__{pt}"
-
-
-df_monthly["series"] = df_monthly.apply(
-    lambda r: series_name(r["ward"], r["primary_type"]), axis=1,
+# Exogenous features shared across every series: just calendar year & month
+exog = (
+    df_hist.groupby("date")
+    .agg(year=("year", "first"), month=("month", "first"))
 )
-panel = (
-    df_monthly
-    .pivot_table(index="date", columns="series", values="count_0", aggfunc="first")
-    .sort_index()
-    .asfreq("MS")
-)
-print(f"\nPanel shape: {panel.shape[0]} months × {panel.shape[1]} series")
+exog.index.freq = "MS"
 
-exog = pd.DataFrame({"year": panel.index.year, "month": panel.index.month}, index=panel.index)
+print(f"\nseries panel: {series.shape[0]} dates x {series.shape[1]} series")
+print(f"exog shape:   {exog.shape}   columns: {list(exog.columns)}")
+print(f"history span: {series.index.min().date()} -> {series.index.max().date()}")
 
-fit_mask = panel.index < CUTOFF_DATE
-panel_fit = panel.loc[fit_mask]
-exog_fit  = exog.loc[fit_mask]
-print(f"Fitting on {len(panel_fit)} months of history ({panel_fit.index.min().date()} "
-      f"to {panel_fit.index.max().date()})")
-
-
-# ---------------------------------------------------------------------------
-# 3. Fit the ForecasterRecursiveMultiSeries
-# ---------------------------------------------------------------------------
-regressor = xgb.XGBRegressor(
-    n_estimators=400, max_depth=6, learning_rate=0.05,
-    subsample=0.8, colsample_bytree=0.8,
-    random_state=SEED, n_jobs=-1,
-)
-forecaster = ForecasterRecursiveMultiSeries(
-    regressor=regressor,
-    lags=LAGS,
-    encoding="ordinal",
-    transformer_series=None,
-    transformer_exog=None,
+# XGBoost regressor underneath the recursive forecaster
+regressor = XGBRegressor(
+    n_estimators=400,
+    max_depth=6,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    n_jobs=-1,
 )
 
-print("\nFitting ForecasterRecursiveMultiSeries (XGBoost, 6 lags, year+month exog) ...")
-forecaster.fit(series=panel_fit, exog=exog_fit, suppress_warnings=True)
+# Recursive multi-series forecaster with 6 autoregressive lags
+forecaster = ForecasterRecursiveMultiSeries(regressor=regressor, lags=6)
 
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
-joblib.dump(forecaster, MODEL_PATH)
-print(f"Saved {MODEL_PATH}")
+print("\nFitting forecaster...")
+forecaster.fit(series=series, exog=exog)
+print("Fit complete.")
+
+# Persist
+os.makedirs("models", exist_ok=True)
+model_path = "models/forecaster.joblib"
+joblib.dump(forecaster, model_path)
+print(f"Saved forecaster to {model_path}")
