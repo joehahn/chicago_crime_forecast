@@ -7,3 +7,4 @@ xgboost>=2.0
 tensorflow>=2.15
 sodapy>=2.2
 skforecast>=0.14
+jupyterlab>=4.0
