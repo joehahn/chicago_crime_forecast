@@ -1,169 +1,152 @@
 #!/usr/bin/env python3
-"""Prepare Chicago crime data for ML training.
-
-Reads  : data/crimes.csv      (produced by get_data.py)
-Writes : data/crimes_monthly.csv
-"""
-
-from pathlib import Path
+# prep_data.py
+# Prepare the Chicago crime data for ML training: load, clean, aggregate, and feature-engineer.
 
 import numpy as np
 import pandas as pd
 
-SEED = 42
-TOP_N_PRIMARY_TYPES = 20
-VALIDATE_FROM = "2025-01-01"
-
-ROOT = Path(__file__).parent
-INPUT_PATH = ROOT / "data" / "crimes.csv"
-OUTPUT_PATH = ROOT / "data" / "crimes_monthly.csv"
-
-rng = np.random.default_rng(SEED)
-pd.set_option("display.max_columns", None)
-pd.set_option("display.width", None)
-
-
-# 1. Load.
-print(f"Loading {INPUT_PATH} ...")
-df_filtered = pd.read_csv(INPUT_PATH)
+# Load the cleaned & filtered crimes dataset saved by get_data.py
+df_filtered = pd.read_csv("data/crimes.csv", low_memory=False)
 print(f"df_filtered shape: {df_filtered.shape}")
 
-# 2. Profile.
-print("\n--- Profile df_filtered ---")
-print(df_filtered.dtypes)
-print()
-print(df_filtered.describe(include="all"))
-
-# 3. Rename date→timestamp, derive month & year, keep top-20 primary_type.
+# Rename date -> timestamp, derive month-of-year, and keep only the top-20 primary_type values
 df_filtered = df_filtered.rename(columns={"date": "timestamp"})
 df_filtered["timestamp"] = pd.to_datetime(df_filtered["timestamp"])
 df_filtered["month"] = df_filtered["timestamp"].dt.month
-df_filtered["year"] = df_filtered["timestamp"].dt.year
+top20 = df_filtered["primary_type"].value_counts().head(20).index
+df_20 = df_filtered[df_filtered["primary_type"].isin(top20)].copy()
+print(f"Records in df_20: {len(df_20):,}")
 
-top_types = df_filtered["primary_type"].value_counts().nlargest(TOP_N_PRIMARY_TYPES).index
-df_20 = df_filtered[df_filtered["primary_type"].isin(top_types)].copy()
-print(f"\nRecords in df_20: {len(df_20):,}")
-
-print("\n--- primary_type counts in df_20 ---")
+# Show count of each primary_type remaining in df_20
+print("\nprimary_type counts in df_20:")
 print(df_20["primary_type"].value_counts().to_string())
 
-print("\n--- 1 random record in df_20 ---")
-print(df_20.sample(1, random_state=SEED).to_string())
+# Display 1 random record with all columns visible
+print("\nRandom record from df_20:")
+with pd.option_context("display.max_columns", None, "display.width", None):
+    print(df_20.sample(1).to_string())
 
-print("\n--- Column types in df_20 ---")
-print(df_20.dtypes)
+# Show column dtypes
+print("\ndf_20 dtypes:")
+print(df_20.dtypes.to_string())
 
-print(f"\nMin date in df_20: {df_20['timestamp'].min()}")
-print(f"Max date in df_20: {df_20['timestamp'].max()}")
+# Report timestamp range in df_20
+print(f"\nMin timestamp: {df_20['timestamp'].min()}")
+print(f"Max timestamp: {df_20['timestamp'].max()}")
 
-# 4. Aggregate → df_avg.
+# Aggregate by (year, month, ward, primary_type): means of a few fields + row count
 df_avg = (
-    df_20.groupby(["year", "month", "ward", "primary_type"])
+    df_20.groupby(["year", "month", "ward", "primary_type"], as_index=False)
     .agg(
-        mean_arrest=("arrest", "mean"),
-        mean_domestic=("domestic", "mean"),
-        mean_latitude=("latitude", "mean"),
-        mean_longitude=("longitude", "mean"),
+        arrest=("arrest", "mean"),
+        domestic=("domestic", "mean"),
+        latitude=("latitude", "mean"),
+        longitude=("longitude", "mean"),
         count_0=("id", "count"),
     )
-    .reset_index()
 )
-df_avg.columns = [c.replace("mean_", "") for c in df_avg.columns]
 df_avg["ward"] = df_avg["ward"].astype(int)
 df_avg["day"] = 1
-df_avg = df_avg[[c for c in df_avg.columns if c != "count_0"] + ["count_0"]]
+# Put count_0 last; everything else keeps its natural order
+cols = [c for c in df_avg.columns if c != "count_0"] + ["count_0"]
+df_avg = df_avg[cols]
 df_avg = df_avg.sort_values(["year", "month", "ward", "primary_type"]).reset_index(drop=True)
 print(f"\nRecords in df_avg: {len(df_avg):,}")
 
-# 5. df_date = df_avg with a proper date column.
-df_date = df_avg.copy()
+# Derive a proper datetime column from the (year, month, day) integer triple
+df_date = df_avg
 df_date["date"] = pd.to_datetime(df_date[["year", "month", "day"]])
+print(f"df_date columns: {list(df_date.columns)}")
+print(f"Min date: {df_date['date'].min()}   Max date: {df_date['date'].max()}")
 
-theft_by_ward = df_date.loc[df_date["primary_type"] == "THEFT"].groupby("ward")["count_0"].sum()
-print(f"\nWard with greatest sum(count_0) for THEFT: {theft_by_ward.idxmax()}")
-
-print("\n--- df_date: primary_type=THEFT, ward=42 ---")
-print(df_date[(df_date["primary_type"] == "THEFT") & (df_date["ward"] == 42)].to_string())
-
-print("\n--- df_date: primary_type=ARSON, ward=42 ---")
-print(df_date[(df_date["primary_type"] == "ARSON") & (df_date["ward"] == 42)].to_string())
-
-# 6. Zero-pad missing (date, ward, primary_type) combinations → df_pad.
-full_index = pd.MultiIndex.from_product(
-    [sorted(df_date["date"].unique()),
-     sorted(df_date["ward"].unique()),
-     sorted(df_date["primary_type"].unique())],
+# Build a dense (date, ward, primary_type) grid and left-join df_date onto it,
+# so every (month, ward, crime type) combination is represented (zero-pad missing ones).
+all_dates = pd.date_range(df_date["date"].min(), df_date["date"].max(), freq="MS")
+all_wards = sorted(df_date["ward"].unique())
+all_types = sorted(df_date["primary_type"].unique())
+grid = pd.MultiIndex.from_product(
+    [all_dates, all_wards, all_types],
     names=["date", "ward", "primary_type"],
-)
-df_pad = (
-    pd.DataFrame(index=full_index)
-    .reset_index()
-    .merge(df_date, on=["date", "ward", "primary_type"], how="left")
-)
+).to_frame(index=False)
+
+df_pad = grid.merge(df_date, on=["date", "ward", "primary_type"], how="left")
 df_pad["count_0"] = df_pad["count_0"].fillna(0).astype(int)
 df_pad["year"] = df_pad["date"].dt.year
 df_pad["month"] = df_pad["date"].dt.month
-df_pad["day"] = df_pad["date"].dt.day
+df_pad["day"] = 1
 df_pad = df_pad.sort_values(["date", "ward", "primary_type"]).reset_index(drop=True)
 print(f"\nRecords in df_pad: {len(df_pad):,}")
 
-print("\n--- df_pad: primary_type=ARSON, ward=42 ---")
-print(df_pad[(df_pad["primary_type"] == "ARSON") & (df_pad["ward"] == 42)].to_string())
-
-# 7. Impute NaN with random samples from the same column → df_nan.
+# For each column, replace NaN values with random draws from that column's non-NaN values
+rng = np.random.default_rng(42)
 df_nan = df_pad.copy()
+print("\nNaN counts per column before imputation:")
+print(df_nan.isna().sum()[df_nan.isna().sum() > 0].to_string() or "(none)")
 for col in df_nan.columns:
-    nan_mask = df_nan[col].isna()
-    if nan_mask.any():
-        non_nan_vals = df_nan.loc[~nan_mask, col].values
-        df_nan.loc[nan_mask, col] = rng.choice(non_nan_vals, size=nan_mask.sum())
+    mask = df_nan[col].isna()
+    if mask.any():
+        pool = df_nan.loc[~mask, col].to_numpy()
+        df_nan.loc[mask, col] = rng.choice(pool, size=mask.sum(), replace=True)
+print("\nNaN counts per column after imputation:")
+post = df_nan.isna().sum()
+print(post[post > 0].to_string() or "(none)")
 
-print("\n--- df_nan: primary_type=ARSON, ward=22 ---")
-print(df_nan[(df_nan["primary_type"] == "ARSON") & (df_nan["ward"] == 22)].to_string())
-
-print("\n--- 5 random records in df_nan ---")
-print(df_nan.sample(5, random_state=SEED).to_string())
-
-# 8. Shift features → df_target.
-def add_shifts(group):
-    group = group.sort_values("date")
-    group["count_previous"] = group["count_0"].shift(1)
-    group["count_1"] = group["count_0"].shift(-1)
-    group["count_2"] = group["count_0"].shift(-2)
-    group["count_3"] = group["count_0"].shift(-3)
-    group["count_4"] = group["count_0"].shift(-4)
-    return group
-
-
-df_target = df_nan.groupby(["ward", "primary_type"], group_keys=False).apply(add_shifts)
+# Build lag/lead count features within each (ward, primary_type) time series, sorted by date.
+# NaNs appear at each series' edges where the shift falls outside the observed range.
+df_target = df_nan.sort_values(["ward", "primary_type", "date"]).reset_index(drop=True)
+grp = df_target.groupby(["ward", "primary_type"], sort=False)["count_0"]
+df_target["count_previous"] = grp.shift(1)
+df_target["count_1"] = grp.shift(-1)
+df_target["count_2"] = grp.shift(-2)
+df_target["count_3"] = grp.shift(-3)
+df_target["count_4"] = grp.shift(-4)
 df_target["delta_count"] = df_target["count_0"] - df_target["count_previous"]
 
-shift_cols = ["delta_count", "count_0", "count_1", "count_2", "count_3", "count_4"]
-other_cols = [c for c in df_target.columns if c != "date" and c not in shift_cols]
-df_target = df_target[["date"] + other_cols + shift_cols]
-df_target = df_target.sort_values(["date", "ward", "primary_type"]).reset_index(drop=True)
+# Move date to the front and the delta/count block to the back; everything else keeps its order.
+last = ["delta_count", "count_0", "count_1", "count_2", "count_3", "count_4"]
+middle = [c for c in df_target.columns if c not in (["date"] + last)]
+df_target = df_target[["date"] + middle + last]
+print(f"\ndf_target shape: {df_target.shape}")
+print(f"df_target columns: {list(df_target.columns)}")
 
-print("\n--- df_target: primary_type=THEFT, ward=27 ---")
-print(df_target[(df_target["primary_type"] == "THEFT") & (df_target["ward"] == 27)].to_string())
-
-# 9. Assign TTV splits → df_ttv.
+# Randomly assign each row to 'train' (~2/3) or 'test' (~1/3) via a uniform [0,1) draw
 df_ttv = df_target.copy()
-df_ttv["TTV"] = np.where(df_ttv["date"] < VALIDATE_FROM, "train", "validate")
+df_ttv["ran_num"] = np.random.default_rng(123).random(len(df_ttv))
+df_ttv["TTV"] = np.where(df_ttv["ran_num"] <= 0.667, "train", "test")
+# Override: everything from 2025-01-01 onward is the out-of-time validation window
+df_ttv.loc[df_ttv["date"] >= "2025-01-01", "TTV"] = "validate"
+# Flag the latest 2 months as the live forecast horizon (where future-lag targets are mostly NaN)
+last_few_dates = sorted(df_ttv["date"].unique())[-2:]
+df_ttv.loc[df_ttv["date"].isin(last_few_dates), "TTV"] = "forecast"
+print(f"last_few_dates (forecast): {[pd.Timestamp(d).date() for d in last_few_dates]}")
+# The very last month's source data is only partial — tag it separately so it can be excluded downstream
+last_few_dates = sorted(df_ttv["date"].unique())[-1:]
+df_ttv.loc[df_ttv["date"].isin(last_few_dates), "TTV"] = "incomplete"
+print(f"last_few_dates (incomplete): {[pd.Timestamp(d).date() for d in last_few_dates]}")
+print(f"\nTTV split counts:\n{df_ttv['TTV'].value_counts().to_string()}")
 
-sorted_dates = sorted(df_ttv["date"].unique())
-df_ttv.loc[df_ttv["date"].isin(sorted_dates[-2:]), "TTV"] = "forecast"
-df_ttv.loc[df_ttv["date"] == sorted_dates[-1], "TTV"] = "incomplete"
+# Drop bookkeeping & mean-of-bool columns that won't be used downstream
+df_monthly = df_ttv.drop(columns=["arrest", "domestic", "count_previous", "ran_num"])
+print(f"\ndf_monthly shape: {df_monthly.shape}")
+print(f"df_monthly columns: {list(df_monthly.columns)}")
 
-# 10. Drop columns → df_monthly, drop delta_count NaNs.
-df_monthly = df_ttv.drop(columns=["arrest", "domestic", "count_previous"])
+# Drop the first month of each series (delta_count undefined without a prior month)
+before = len(df_monthly)
 df_monthly = df_monthly.dropna(subset=["delta_count"]).reset_index(drop=True)
+print(f"\nDropped {before - len(df_monthly):,} rows with NaN delta_count; df_monthly now: {df_monthly.shape}")
 
-print("\n--- df_monthly: primary_type=THEFT, ward=22 ---")
-pd.set_option("display.max_rows", None)
-print(df_monthly[(df_monthly["primary_type"] == "THEFT") & (df_monthly["ward"] == 22)].to_string())
-pd.reset_option("display.max_rows")
+# Pretty-print all records for (primary_type=THEFT, ward=22) as a sanity check
+sub = df_monthly[(df_monthly["primary_type"] == "THEFT") & (df_monthly["ward"] == 22)]
+print(f"\nAll df_monthly rows for primary_type=THEFT, ward=22 ({len(sub)} rows):")
+with pd.option_context(
+    "display.max_rows", None,
+    "display.max_columns", None,
+    "display.width", None,
+    "display.expand_frame_repr", False,
+):
+    print(sub.to_string(index=False))
 
-# 11. Save.
-OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-df_monthly.to_csv(OUTPUT_PATH, index=False)
-print(f"\nSaved df_monthly to {OUTPUT_PATH} ({len(df_monthly):,} records)")
+# Persist the prepared monthly panel for downstream model training / validation
+output_path = "data/crimes_monthly.csv"
+df_monthly.to_csv(output_path, index=False)
+print(f"\nSaved df_monthly to {output_path}")
