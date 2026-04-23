@@ -144,3 +144,7 @@ share or consolidate legends across plots.
 Every plot must have its own legend embedded within it.
 
 Save the dashboard as `docs/forecast_dashboard.html` (published via GitHub Pages).
+
+Lastly, create a Jupyter notebook that replicates everything done by forecast_model.py and validate_model.py,
+call that Jupyter notebook forecast_validate.ipynb
+
