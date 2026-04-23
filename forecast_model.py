@@ -1,57 +1,83 @@
-#!/usr/bin/env python3
-# forecast_model.py
-# Train a recursive time-series forecaster (skforecast) on the monthly Chicago crimes panel.
+"""
+forecast_model.py
+
+Trains an skforecast multi-series recursive forecaster on the monthly Chicago
+crime panel -- one timeseries per (ward, primary_type) -- with an XGBoost
+regressor underneath. The trained forecaster is saved to
+models/forecaster.joblib.
+"""
 
 import os
 
-import joblib
 import pandas as pd
-from xgboost import XGBRegressor
 from skforecast.recursive import ForecasterRecursiveMultiSeries
+from skforecast.utils import save_forecaster
+from xgboost import XGBRegressor
 
-KEEP = [
+
+# ---------------------------------------------------------------------------
+# Load crimes_monthly.csv and carve out train / validate / forecast slices.
+# ---------------------------------------------------------------------------
+
+df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"])
+
+keep_cols = [
     "date", "year", "month", "ward", "primary_type",
     "delta_count", "count_0", "count_1", "count_2", "count_3", "count_4",
 ]
 
-# Load the prepared monthly panel produced by prep_data.py
-df_monthly = pd.read_csv("data/crimes_monthly.csv", parse_dates=["date"], low_memory=False)
+df_train = df_monthly.loc[df_monthly["TTV"] == "train", keep_cols].copy()
+df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", keep_cols].copy()
+df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", keep_cols].copy()
 
-# Split into the three working sets by TTV flag, keeping only the modelling columns
-df_train    = df_monthly.loc[df_monthly["TTV"] == "train",    KEEP].reset_index(drop=True)
-df_validate = df_monthly.loc[df_monthly["TTV"] == "validate", KEEP].reset_index(drop=True)
-df_forecast = df_monthly.loc[df_monthly["TTV"] == "forecast", KEEP].reset_index(drop=True)
-
-print(f"df_train    : {len(df_train):,} records")
-print(f"df_validate : {len(df_validate):,} records")
-print(f"df_forecast : {len(df_forecast):,} records")
+print(f"df_train    has {len(df_train):,} records")
+print(f"df_validate has {len(df_validate):,} records")
+print(f"df_forecast has {len(df_forecast):,} records")
 
 print("\n5 random records from df_train:")
-with pd.option_context("display.max_columns", None, "display.width", None):
-    print(df_train.sample(5, random_state=7).to_string(index=False))
+print(df_train.sample(n=5, random_state=None).to_string())
 
 
-# ---------- Train multi-series recursive forecaster ----------
-# Reshape df_train into the (date x series_id) wide panel skforecast expects
-df_hist = df_train.sort_values(["ward", "primary_type", "date"]).copy()
-df_hist["series_id"] = df_hist["ward"].astype(str) + "_" + df_hist["primary_type"]
+# ---------------------------------------------------------------------------
+# Reshape df_train into skforecast's multi-series format:
+#   - `series`: dict-of-Series (or wide DataFrame) keyed by series_id, index=date
+#   - `exog`:   DataFrame indexed by date with the shared exogenous features.
+# ---------------------------------------------------------------------------
 
-# series: each column is one (ward, primary_type) time series of count_0
-series = df_hist.pivot(index="date", columns="series_id", values="count_0")
-series.index.freq = "MS"  # monthly-start; tells skforecast the panel is regular
-
-# Exogenous features shared across every series: just calendar year & month
-exog = (
-    df_hist.groupby("date")
-    .agg(year=("year", "first"), month=("month", "first"))
+# one series per (ward, primary_type) combination
+df_train["series_id"] = (
+    "w" + df_train["ward"].astype(int).astype(str).str.zfill(2)
+    + "_" + df_train["primary_type"].str.replace(" ", "_")
 )
-exog.index.freq = "MS"
 
-print(f"\nseries panel: {series.shape[0]} dates x {series.shape[1]} series")
-print(f"exog shape:   {exog.shape}   columns: {list(exog.columns)}")
-print(f"history span: {series.index.min().date()} -> {series.index.max().date()}")
+series_wide = (
+    df_train.pivot_table(
+        index="date",
+        columns="series_id",
+        values="count_0",
+        aggfunc="first",
+    )
+    .sort_index()
+    .asfreq("MS")  # ensure contiguous monthly index
+)
 
-# XGBoost regressor underneath the recursive forecaster
+# exogenous features — shared across all series, indexed by date
+exog = (
+    df_train[["date", "year", "month"]]
+    .drop_duplicates()
+    .set_index("date")
+    .sort_index()
+    .asfreq("MS")
+)
+
+print(f"\nseries_wide shape: {series_wide.shape}  (dates x series)")
+print(f"exog shape: {exog.shape}")
+
+
+# ---------------------------------------------------------------------------
+# Build and fit the forecaster.
+# ---------------------------------------------------------------------------
+
 regressor = XGBRegressor(
     n_estimators=400,
     max_depth=6,
@@ -62,15 +88,21 @@ regressor = XGBRegressor(
     n_jobs=-1,
 )
 
-# Recursive multi-series forecaster with 6 autoregressive lags
-forecaster = ForecasterRecursiveMultiSeries(regressor=regressor, lags=6)
+forecaster = ForecasterRecursiveMultiSeries(
+    regressor=regressor,
+    lags=6,
+    encoding="ordinal",
+)
 
-print("\nFitting forecaster...")
-forecaster.fit(series=series, exog=exog)
-print("Fit complete.")
+print("\nfitting forecaster ...")
+forecaster.fit(series=series_wide, exog=exog)
+print("fit complete")
 
-# Persist
+
+# ---------------------------------------------------------------------------
+# Persist the forecaster.
+# ---------------------------------------------------------------------------
+
 os.makedirs("models", exist_ok=True)
-model_path = "models/forecaster.joblib"
-joblib.dump(forecaster, model_path)
-print(f"Saved forecaster to {model_path}")
+save_forecaster(forecaster, file_name="models/forecaster.joblib", verbose=False)
+print("\nsaved forecaster to models/forecaster.joblib")
