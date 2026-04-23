@@ -1,8 +1,8 @@
 # forecast_model — prompts
 
-**Author:** Joe Hahn
-**Email:** jmh.datasciences@gmail.com  
-**Date:** 2026-April-17
+**Author:** Joe Hahn <br>
+**Email:** jmh.datasciences@gmail.com  <br>
+**Date:** 2026-April-17 <br>
 **branch** main
 
 These prompts generate `forecast_model.py`, which uses the [skforecast](https://skforecast.org) library 
