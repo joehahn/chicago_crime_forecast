@@ -6,12 +6,6 @@ import numpy as np
 import pandas as pd
 
 # Pretty-print helper: show every column / row without pandas truncation
-PP = dict(
-    display_max_rows=None,
-    display_max_columns=None,
-    display_width=None,
-    display_expand_frame_repr=False,
-)
 def _show(df):
     with pd.option_context(
         "display.max_rows", None,

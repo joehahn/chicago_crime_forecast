@@ -4,7 +4,6 @@
 # validate/forecast splits, and render an HTML dashboard of validation tables and plots.
 
 import os
-from math import cos, radians
 
 import joblib
 import numpy as np
@@ -143,7 +142,7 @@ agg = df_monthly.groupby(["date", "TTV"], as_index=False)["count_0"].sum().renam
     columns={"count_0": "total_count"}
 )
 ttv_colors = {"train": "#1f77b4", "validate": "#2ca02c", "forecast": "#d62728",
-              "incomplete": "#7f7f7f", "test": "#ff7f0e"}
+              "incomplete": "#7f7f7f"}
 fig1 = go.Figure()
 for ttv in ["train", "validate", "forecast"]:
     seg = agg[agg["TTV"] == ttv].sort_values("date")

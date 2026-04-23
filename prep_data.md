@@ -37,7 +37,6 @@ Group `df_20` by `year, month, ward, primary_type` and compute:
 - `mean(longitude)`
 - `count(id)` as `count_0`
 
-Drop the `mean_` prefix from the new columns. 
 Cast `ward` to integer. 
 Add a column `day` containing integer `1`. 
 Reorder columns so that `count_0` is last. 

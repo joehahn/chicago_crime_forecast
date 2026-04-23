@@ -23,7 +23,7 @@ Concretely, pass `include_plotlyjs='cdn'` on the first plotly figure written and
 
 Load `data/crimes_monthly.csv` into `df_monthly`.
 
-Set `df_train` to all records in `df_monthly` having `TTV = 'train', 
+Set `df_train` to all records in `df_monthly` having `TTV = 'train'`, 
 keeping only these columns: `date, year, month, ward, primary_type, delta_count, count_0, count_1, count_2, count_3, count_4`.
 
 Similarly:

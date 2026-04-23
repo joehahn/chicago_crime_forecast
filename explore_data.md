@@ -43,7 +43,6 @@ Use markers with `s=8` and `alpha=0.8`. (Ward-hover tooltips are intentionally d
 
 Stack each plot vertically with **exactly 10 px of vertical margin/padding (no more, no less) 
 between every pair of adjacent plots, tables, and charts**, 
-so that no element (including axis labels, tick labels, or legends) e
-ver touches or overlaps the one above or below it.
+so that no element (including axis labels, tick labels, or legends) ever touches or overlaps the one above or below it.
 
 Save the dashboard as `docs/data_exploration.html` (published via GitHub Pages).
