@@ -204,23 +204,15 @@ tbl2.update_layout(title="Table 2 — feature importances (values truncated to 5
                    height=320, margin=dict(l=20, r=20, t=50, b=10))
 
 
-# Plots 2..5 — scatter count_N_pred vs count_N with quantile-based coloring
-# "middlemost 80%" → 10th..90th percentile of count_0 = green; the 20% tails = red
+# Plots 2..5 — scatter count_N_pred vs count_N, opaque blue dots
 def scatter_pred_vs_actual(k):
-    df = df_validate[[f"count_{k}", f"count_{k}_pred", "count_0"]].copy()
+    df = df_validate[[f"count_{k}", f"count_{k}_pred"]].copy()
     df = df[(df[f"count_{k}"] > 0) & (df[f"count_{k}_pred"] > 0)]
-    q10, q90 = df["count_0"].quantile([0.1, 0.9])
-    mid_mask = (df["count_0"] >= q10) & (df["count_0"] <= q90)
     fig = go.Figure()
     fig.add_trace(go.Scattergl(
-        x=df.loc[mid_mask, f"count_{k}"], y=df.loc[mid_mask, f"count_{k}_pred"],
-        mode="markers", name="middle 80%",
-        marker=dict(color="green", opacity=1.0, size=5),
-    ))
-    fig.add_trace(go.Scattergl(
-        x=df.loc[~mid_mask, f"count_{k}"], y=df.loc[~mid_mask, f"count_{k}_pred"],
-        mode="markers", name="outer 20%",
-        marker=dict(color="red", opacity=1.0, size=5),
+        x=df[f"count_{k}"], y=df[f"count_{k}_pred"],
+        mode="markers", name="validate",
+        marker=dict(color="blue", opacity=1.0, size=5),
     ))
     # y = x dashed reference line
     xs = np.array([0.8, 600])
@@ -347,13 +339,13 @@ H, _, _ = np.histogram2d(theft_recent["latitude"], theft_recent["longitude"],
 lat_ctr = 0.5 * (lat_edges[:-1] + lat_edges[1:])
 lon_ctr = 0.5 * (lon_edges[:-1] + lon_edges[1:])
 ii, jj = np.nonzero(H)
-z = np.log1p(H[ii, jj])
+z = H[ii, jj]  # raw bin counts (linear color scale)
 
 fig10 = go.Figure(go.Densitymapbox(
     lat=lat_ctr[ii], lon=lon_ctr[jj], z=z,
     radius=12,
     colorscale="YlOrRd",
-    colorbar=dict(title="log(1+count)"),
+    colorbar=dict(title="count"),
 ))
 fig10.update_layout(
     mapbox_style="open-street-map",

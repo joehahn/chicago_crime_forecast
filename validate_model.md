@@ -80,8 +80,7 @@ Using `df_validate`, scatter-plot `count_1_pred` (predictions) vs. `count_1` (ac
 - Do not distinguish between different `primary_type` or `ward`.
 - Do not add 0.5 to either predictions or actuals.
 - Include only points whose prediction AND actual are `> 0`.
-- Use opaque **green** dots for records whose `count_0` falls in the middlemost 80% of the data, 
-and opaque **red** dots for records in the outermost 20%.
+- Use opaque **blue** dots
 - Overplot `y = x` as a dashed line labeled `prediction=actual`.
 - Place the legend in the **lower-right corner** of the plot.
 
@@ -131,7 +130,7 @@ Superimpose a heatmap of those thefts on top of a streetmap of Chicago, with:
 
 - **x-axis:** `-longitude`, running from `87.85` (left) to `87.5` (right).
 - **y-axis:** `latitude`, running from `41.65` to `42.05`.
-- Logarithmic color scaling applied to the binned counts.
+- Linear color scaling applied to the binned counts.
 - A geographic aspect ratio (so that one degree of latitude and one degree of longitude represent 
 equal distances on the ground at Chicago's latitude, ≈ 41.85°).
 
