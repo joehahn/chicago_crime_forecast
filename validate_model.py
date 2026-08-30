@@ -420,6 +420,7 @@ dashboard = f"""<!DOCTYPE html>
 <body>
 <div class="block"><h1>Chicago Crime — Forecast Validation Dashboard</h1></div>
 {chr(10).join(figures_html)}
+<footer style="font-size:12px;line-height:1.75;color:#777;border-top:1px solid #e2e2e2;margin-top:40px;padding:14px 0 24px;">Built by <a href="https://jmh-datasciences.com" style="color:inherit;text-decoration:underline;">Joseph M. Hahn, Ph.D. &mdash; JMH DataSciences</a> &middot; <a href="https://github.com/joehahn/chicago_crime_forecast" style="color:inherit;text-decoration:underline;">chicago_crime_forecast on GitHub</a><br>This page is <a href="https://github.com/joehahn/chicago_crime_forecast/blob/main/LICENSE" style="color:inherit;text-decoration:underline;">MIT licensed</a> &mdash; reuse it freely, including commercially. Source data: <a href="https://www.chicago.gov/city/en/dataset/crime.html" style="color:inherit;text-decoration:underline;">City of Chicago open data</a>.<br><b>A research demonstration, not a policing tool.</b> Aggregate monthly counts per ward; not a risk-scoring or resource-allocation system.</footer>
 </body>
 </html>
 """

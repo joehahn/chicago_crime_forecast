@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you reference this work, please cite it as below."
+title: "chicago_crime_forecast: month-ahead forecasts for 1,000 parallel crime-by-ward time series"
+abstract: >-
+  A forecasting pipeline that turns the City of Chicago's public incident feed
+  into month-ahead counts for every crime-type-and-ward pair in the city: 1,000
+  short, seasonal, individually thin series forecast together by a single
+  skforecast recursive multi-series model with an XGBoost regressor underneath.
+  Accuracy is measured by rolling-origin backtest at a four-month horizon, so
+  the reported error is out-of-sample. Built end-to-end with Claude Code and
+  published with interactive exploration and validation dashboards.
+type: software
+authors:
+  - family-names: Hahn
+    given-names: "Joseph M."
+    email: jmh.datasciences@gmail.com
+    affiliation: "JMH DataSciences"
+    website: "https://jmh-datasciences.com"
+repository-code: "https://github.com/joehahn/chicago_crime_forecast"
+url: "https://jmh-datasciences.com"
+license: MIT
+keywords:
+  - time-series-forecasting
+  - multi-series-forecasting
+  - skforecast
+  - xgboost
+  - machine-learning
+  - open-data
+  - backtesting
+  - python
