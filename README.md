@@ -16,7 +16,7 @@ model never saw, not on its own training data.
 Built end-to-end with [Claude Code](https://claude.com/claude-code) by
 **Joseph M. Hahn, Ph.D.**, an independent AI and machine learning consultant —
 [jmh-datasciences.com](https://jmh-datasciences.com) ·
-[LinkedIn](https://www.linkedin.com/in/hahnjoe/) · jmh.datasciences@gmail.com
+[LinkedIn](https://www.linkedin.com/in/hahnjoe/) · joe.hahn@jmh-datasciences.com
 
 > **A research demonstration, not a policing tool.** This forecasts aggregate
 > monthly counts per ward from the City of Chicago's published open data. It is
